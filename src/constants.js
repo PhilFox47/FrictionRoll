@@ -49,7 +49,6 @@ export const defaultSettings = {
     autoRerollOnSwipe: true,
 
     // After a reply, ask the model (a Yes/No side-call) whether it actually
-    // delivered the selected outcome. On "No", regenerate once with a stronger
-    // directive; the retry is accepted as-is (never re-evaluated).
+    // delivered the selected outcome, and log the verdict for visibility.
     evaluateOutcome: true,
 };

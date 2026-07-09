@@ -1,7 +1,6 @@
 // A single AI pass that judges whether a generated reply actually delivered the
 // selected outcome. Unlike keyword matching, this asks the model directly for a
-// Yes/No verdict. On "No", the caller regenerates ONCE with a stronger
-// directive; that retry is never re-evaluated (no loops).
+// Yes/No verdict, which the caller logs for visibility.
 
 export function buildEvalSystemPrompt() {
     return [

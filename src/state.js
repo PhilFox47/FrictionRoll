@@ -27,8 +27,6 @@ let busy = false;            // a pipeline (manual or swipe) is running
 let consumeOnReceive = false; // the in-flight normal generation is using the primed roll
 let showToastNext = false;    // a swipe reroll wants a post-hoc result toast
 let judgeThisReply = false;   // the reply about to land should be evaluated
-let skipNextJudge = false;    // the next reply is a forced regen — never evaluate it
-let suppressReroll = false;   // a forced regen: keep the same outcome, don't re-roll
 
 export function isBusy() { return busy; }
 export function getPending() { return pending; }
@@ -200,9 +198,6 @@ export async function outcomeRollGenerationInterceptor(chat, _contextSize, _abor
         // side-call. Keeps the beat's outcome space consistent; only the roll
         // (and thus the selected outcome) changes.
         if (SWIPE_TYPES.has(type)) {
-            // A forced regen (outcome evaluation said "No") keeps the SAME
-            // outcome + emphasised directive — don't re-roll.
-            if (suppressReroll) { suppressReroll = false; return chat; }
             if (!settings.autoRerollOnSwipe) return chat;
             if (!pending || pending.status !== 'committed') return chat;
             if (Array.isArray(pending.menu) && pending.menu.length >= 2) {
@@ -264,27 +259,18 @@ export function onGenerationEnded() {
         if (settings.showResultAfter && pending) showResultToast(pending);
     }
 
-    // The forced regeneration (2nd try) is accepted as-is — never evaluated,
-    // so there is no loop.
-    if (skipNextJudge) {
-        skipNextJudge = false;
-        judgeThisReply = false;
-        return;
-    }
-
     if (judgeThisReply) {
         judgeThisReply = false;
         if (settings.evaluateOutcome && pending?.selected) {
-            evaluateAndMaybeRegen(); // async, fire-and-forget
+            evaluateReply(); // async, fire-and-forget
         }
     }
 }
 
-// Ask the model whether the reply delivered the selected outcome. On "No",
-// regenerate once with a stronger directive; that retry is not re-evaluated.
-async function evaluateAndMaybeRegen() {
+// Ask the model whether the reply delivered the selected outcome, and log /
+// record the Yes/No verdict for visibility. (No auto-regeneration.)
+async function evaluateReply() {
     const outcome = pending?.selected;
-    const messageId = pending?.messageId;
     if (!outcome) return;
     const chat = getST()?.chat ?? [];
     const reply = chat[chat.length - 1]?.mes ?? '';
@@ -296,49 +282,15 @@ async function evaluateAndMaybeRegen() {
         const raw = await runSideCall(buildEvalSystemPrompt(), buildEvalUserPrompt(outcome, reply), 8);
         verdict = parseEvalVerdict(raw);
     } catch (e) {
-        console.warn('[Outcome Roll] outcome evaluation failed — accepting the reply.', e);
+        console.warn('[Outcome Roll] outcome evaluation failed.', e);
         verdict = 'unknown';
     } finally {
         busy = false;
     }
 
     annotateDebug({ evaluation: verdict });
-    console.info(`[Outcome Roll] outcome evaluation (${outcome.tag}): ${verdict.toUpperCase()}`);
-
-    // Only "no" triggers a regen; "yes"/"unknown" accept the reply as-is.
-    if (verdict !== 'no') return;
-    // Bail if the turn moved on while we were evaluating.
-    if (!pending || pending.messageId !== messageId) return;
-
-    skipNextJudge = true;      // the retry is final — do not evaluate it
-    suppressReroll = true;     // keep the same outcome on the forced swipe
-    setDirective(outcome, true); // emphasised directive for the retry
-    forceRegenerate();
-}
-
-function forceRegenerate() {
-    const ctx = getST();
-    if (typeof ctx?.generate !== 'function') {
-        console.warn('[Outcome Roll] regenerate unavailable (no generate()).');
-        skipNextJudge = false;
-        suppressReroll = false;
-        return;
-    }
-    console.info('[Outcome Roll] outcome missing — regenerating once with stronger emphasis.');
-    // Defer so this handler finishes before a new generation starts.
-    setTimeout(() => {
-        try {
-            Promise.resolve(ctx.generate('swipe')).catch((e) => {
-                skipNextJudge = false;
-                suppressReroll = false;
-                console.error('[Outcome Roll] regenerate failed', e);
-            });
-        } catch (e) {
-            skipNextJudge = false;
-            suppressReroll = false;
-            console.error('[Outcome Roll] regenerate failed', e);
-        }
-    }, 0);
+    const label = verdict === 'no' ? 'NO — reply did not deliver the outcome' : verdict.toUpperCase();
+    console.info(`[Outcome Roll] outcome evaluation (${outcome.tag}): ${label}`);
 }
 
 // --- Chat switch / reset: wipe everything so nothing leaks across chats -----
@@ -348,7 +300,5 @@ export function onChatChanged() {
     consumeOnReceive = false;
     showToastNext = false;
     judgeThisReply = false;
-    skipNextJudge = false;
-    suppressReroll = false;
     busy = false;
 }

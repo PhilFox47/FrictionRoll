@@ -102,9 +102,9 @@ const SETTINGS_HTML = `
         <input type="checkbox" id="or_autoRerollOnSwipe"><span>Automatic fresh roll when swiping the reply</span>
       </label>
       <label class="checkbox_label" for="or_evaluateOutcome">
-        <input type="checkbox" id="or_evaluateOutcome"><span>Evaluate the reply (Yes/No) and regenerate once if it misses the outcome</span>
+        <input type="checkbox" id="or_evaluateOutcome"><span>Evaluate whether the reply delivered the outcome (Yes/No, logged)</span>
       </label>
-      <small class="or-hint">Requires the preset to embed the <code>{{frictionroll}}</code> macro in its final-instruction block. Evaluation adds one small side-call per reply, plus one regeneration when it fails.</small>
+      <small class="or-hint">Requires the preset to embed the <code>{{frictionroll}}</code> macro in its final-instruction block. Evaluation adds one small side-call per reply and logs the verdict to the console / debug view.</small>
       <label class="checkbox_label" for="or_showResultAfter">
         <input type="checkbox" id="or_showResultAfter"><span>Show roll result as flavor AFTER the reply</span>
       </label>
@@ -217,7 +217,7 @@ function renderDebug(last, history) {
     }
     if (d.roll != null) lines.push(`roll: ${d.roll}/100`);
     if (d.selected) lines.push(`SELECTED -> ${d.selected.tag}: ${d.selected.text}`);
-    if (d.evaluation) lines.push(`evaluation: ${String(d.evaluation).toUpperCase()}${d.evaluation === 'no' ? ' (regenerated once)' : ''}`);
+    if (d.evaluation) lines.push(`evaluation: ${String(d.evaluation).toUpperCase()}`);
     lines.push('');
     lines.push('--- raw side-call response ---');
     lines.push(d.raw ?? '(empty)');
