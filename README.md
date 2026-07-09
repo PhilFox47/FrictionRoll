@@ -17,36 +17,41 @@ completely inert until you trigger it.
 
 ## How it works
 
-1. You describe an uncertain attempt in the composer.
-2. You **manually** trigger a roll — the wand-menu button **🎲 Roll for it** or
-   the `/roll-outcome` slash command. Nothing is ever automatic on send.
-3. A detached side-call produces a small weighted menu of outcomes
-   (`TAG|PERCENT|text`, one per line).
-4. The response is parsed strictly, validated for type diversity, and the
+By default (Auto-roll on send), every message you send is adjudicated
+automatically before the reply is written:
+
+1. You send a message describing an uncertain attempt — nothing extra to click.
+2. Before the main reply is generated, a detached side-call looks at your
+   message plus recent context and produces a small weighted menu of
+   *substantively different* outcomes (`TAG|PERCENT|text`, one per line).
+3. The response is parsed strictly, validated for type diversity, and the
    percentages are normalized to sum to 100.
-5. A real random 1–100 is rolled **locally** (never by the model) and mapped
-   against the menu's cumulative ranges.
-6. The selected outcome is injected as a hidden GM directive positioned at the
+4. A real random 1–100 is rolled **locally** (never by the model) and mapped
+   against the menu's cumulative ranges — higher-probability outcomes are more
+   likely to be selected.
+5. The selected outcome is injected as a hidden GM directive positioned at the
    end of context, where model attention is most reliable.
-7. You send normally; the reply is written around the directive, which never
-   appears in chat.
-8. **Swiping** that reply automatically runs a fresh menu + roll before the
+6. **Then** the main reply is generated, written around the directive. The
+   directive never appears in chat.
+7. **Swiping** that reply automatically runs a fresh menu + roll before the
    swipe completes. Moving on to a new message clears the directive so it can't
    leak into a later, unrelated turn.
+
+Because SillyTavern's event emitter awaits async listeners, the roll hooks
+`GENERATION_STARTED` and completes *before* the generation builds its prompt.
 
 ## Trigger model
 
 | Action | Behavior |
 | --- | --- |
-| First roll | **Manual only** — button or slash command. |
-| Re-click before sending | Discards the unused roll, generates a fresh one. |
+| Send a message | **Auto-roll** before the reply (default; toggleable). |
 | Swipe / regenerate the reply | **Automatic** fresh menu + roll (toggleable). |
-| Never triggered | Zero effect — no side-calls, no injection. |
+| 🎲 button / `/roll-outcome` | Manual roll — a pre-roll that the next send uses (still available; the primary path when auto-roll is off). |
+| Auto-roll off, no manual roll | Zero effect — no side-calls, no injection. |
 
-The automatic swipe re-roll hooks `GENERATION_STARTED` and re-rolls only when
-`type` is `swipe`/`regenerate` on a turn that was actually adjudicated, so
-ordinary swipes are untouched. Because SillyTavern's event emitter awaits async
-listeners, the fresh roll completes before the swipe builds its prompt.
+Turn a message from *"attempt"* into *"just narration"* by switching **Roll
+automatically on every message you send** off in settings and rolling manually
+only when you want an attempt adjudicated.
 
 ## Settings
 

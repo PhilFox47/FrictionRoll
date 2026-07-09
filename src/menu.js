@@ -12,6 +12,7 @@ export function buildSystemPrompt() {
         'You do NOT write prose, dialogue, or roleplay, and you do NOT play any character.',
         'Given a scene and one specific attempted action, you output a short weighted menu of plausible outcomes for that action.',
         'Judge plausibility neutrally. Do not favor success or the most dramatic result — real attempts often fail or cost something.',
+        'The outcomes must be genuinely different from one another in what actually happens next — different consequences and directions, not reworded versions of the same result.',
     ].join(' ');
 }
 
@@ -29,6 +30,7 @@ export function buildUserPrompt(contextText, action, settings, stricter = false)
         '- Each outcome is exactly one line, pipe-delimited: TAG|PERCENT|one concise sentence describing what happens.',
         '- TAG is exactly one of: WIN (clean success), COST (succeeds but at a real price or complication), SETBACK (fails, or a genuine curveball).',
         '- You MUST include at least one WIN, at least one COST, and at least one SETBACK.',
+        '- The outcomes must be substantively different from each other — do not list minor variations or rephrasings of the same event.',
         `- PERCENT is an integer from ${floor} to ${ceiling}. Nothing is 0 (impossible) or 100 (guaranteed).`,
         '- Percentages should reflect genuine uncertainty and roughly sum to 100.',
         '- Output ONLY the outcome lines. No numbering, no preamble, no markdown, no blank lines, no commentary.',

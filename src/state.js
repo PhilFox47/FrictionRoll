@@ -126,9 +126,33 @@ function isDryRun(options, dryRun) {
     return dryRun === true || options === true || options?.dryRun === true;
 }
 
-// --- GENERATION_STARTED: swipe re-roll + primed/committed transitions -------
-// eventSource.emit awaits async listeners, so the swipe branch can run the full
-// pipeline (fresh menu + fresh roll) before the swipe builds its prompt.
+// Run the full pipeline inline and inject, guarding re-entrancy from our own
+// side-call generations. `committed` marks a turn that already produced a reply
+// (so it re-rolls on swipe); `primed` marks a roll about to be consumed by the
+// generation we're standing in front of. Fails open: on error, inject nothing.
+async function runInlineRoll(mode, { committed = false, messageId = null } = {}) {
+    const settings = getSettings();
+    busy = true;
+    try {
+        const result = await generateMenu(mode);
+        pending = { ...result, status: committed ? 'committed' : 'primed', messageId };
+        applyInjection(result.selected);
+        if (committed) showToastNext = settings.showResultAfter; // reveal after it writes
+        return true;
+    } catch (e) {
+        console.error(`[Outcome Roll] ${mode} roll failed`, e);
+        clearInjection();
+        if (committed) pending = null;
+        return false;
+    } finally {
+        busy = false;
+    }
+}
+
+// --- GENERATION_STARTED: the automatic trigger ------------------------------
+// Fires before the prompt is built; eventSource.emit awaits async listeners, so
+// the whole roll pipeline (menu + weighted dice) completes here and the main
+// generation then builds with the winning outcome already injected.
 export async function onGenerationStarted(type, options, dryRun) {
     if (isDryRun(options, dryRun)) return;
     if (busy) return; // ignore re-entrancy from our own side-call generations
@@ -141,33 +165,32 @@ export async function onGenerationStarted(type, options, dryRun) {
         if (!settings.autoRerollOnSwipe) return;
         // Only re-roll a turn we actually adjudicated; leave normal swipes alone.
         if (!pending || pending.status !== 'committed') return;
-        busy = true;
-        try {
-            const result = await generateMenu('swipe');
-            pending = { ...result, status: 'committed', messageId: pending.messageId };
-            applyInjection(result.selected);
-            showToastNext = settings.showResultAfter; // reveal after the swipe writes
-        } catch (e) {
-            console.error('[Outcome Roll] swipe re-roll failed', e);
-            clearInjection(); // fail open: this swipe just isn't adjudicated
-        } finally {
-            busy = false;
-        }
+        await runInlineRoll('swipe', { committed: true, messageId: pending.messageId });
         return;
     }
 
-    if (type === 'normal') {
-        if (pending?.status === 'primed') {
-            // This generation consumes the primed roll.
-            consumeOnReceive = true;
-        } else if (pending?.status === 'committed') {
-            // Player has advanced to a new, unrelated turn — clear the stale
-            // directive before it can bleed into this reply.
-            clearInjection();
-            pending = null;
-        }
+    if (type !== 'normal') return; // ignore quiet/impersonate/continue
+
+    // A manual pre-roll (button/command) takes precedence: consume it as-is
+    // rather than rolling again for the same send.
+    if (pending?.status === 'primed') {
+        consumeOnReceive = true;
+        return;
     }
-    // Other types (quiet/impersonate/continue) leave state untouched.
+
+    // Advancing to a new turn — clear any stale committed directive first so it
+    // can't bleed into this reply.
+    if (pending?.status === 'committed') {
+        clearInjection();
+        pending = null;
+    }
+
+    if (!settings.autoRollOnSend) return; // manual-only mode: no roll on send
+
+    // Auto-roll for this send. The just-sent user message is already in chat,
+    // so it becomes the action being adjudicated.
+    const ok = await runInlineRoll('send', { committed: false, messageId: null });
+    if (ok) consumeOnReceive = true; // this generation consumes it; commit on end
 }
 
 // --- GENERATION_ENDED: primed -> committed, and post-hoc result toast -------

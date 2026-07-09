@@ -91,8 +91,12 @@ const SETTINGS_HTML = `
         <small class="or-hint">Structured output wants a low, deterministic value. Applied on the side-call.</small>
       </div>
 
+      <label class="checkbox_label" for="or_autoRollOnSend">
+        <input type="checkbox" id="or_autoRollOnSend"><span>Roll automatically on every message you send</span>
+      </label>
+      <small class="or-hint">On: every send rolls before the reply is generated. Off: rolls only via the 🎲 button / <code>/roll-outcome</code>.</small>
       <label class="checkbox_label" for="or_promptForAction">
-        <input type="checkbox" id="or_promptForAction"><span>Prompt to edit the action before rolling</span>
+        <input type="checkbox" id="or_promptForAction"><span>Prompt to edit the action before rolling (manual button only)</span>
       </label>
       <label class="checkbox_label" for="or_autoRerollOnSwipe">
         <input type="checkbox" id="or_autoRerollOnSwipe"><span>Automatic fresh roll when swiping the reply</span>
@@ -126,6 +130,7 @@ const FIELDS = {
     or_contextTokenBudget: ['contextTokenBudget', 'int'],
     or_connectionProfileId: ['connectionProfileId', 'str'],
     or_temperature: ['temperature', 'float'],
+    or_autoRollOnSend: ['autoRollOnSend', 'bool'],
     or_promptForAction: ['promptForAction', 'bool'],
     or_autoRerollOnSwipe: ['autoRerollOnSwipe', 'bool'],
     or_showResultAfter: ['showResultAfter', 'bool'],

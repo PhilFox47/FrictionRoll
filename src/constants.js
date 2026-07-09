@@ -55,6 +55,11 @@ export const defaultSettings = {
     // Default hidden so outcomes can't be gamed by seeing them coming.
     showResultAfter: false,
 
+    // Automatically run the roll pipeline on every message you send, before the
+    // main reply is generated. When off, rolls only happen via the manual
+    // button / slash command (the original manual-only behavior).
+    autoRollOnSend: true,
+
     // Automatic fresh roll when swiping/regenerating an adjudicated reply.
     autoRerollOnSwipe: true,
 };
