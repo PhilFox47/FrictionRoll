@@ -12,6 +12,14 @@ export function setDebug(entry) {
     try { renderCb?.(lastDebug, history); } catch { /* UI not mounted yet */ }
 }
 
+// Merge extra fields (e.g. the outcome-evaluation verdict) into the most recent
+// entry and re-render.
+export function annotateDebug(patch) {
+    if (!lastDebug) return;
+    Object.assign(lastDebug, patch);
+    try { renderCb?.(lastDebug, history); } catch { /* UI not mounted yet */ }
+}
+
 export function getLastDebug() { return lastDebug; }
 export function getHistory() { return history; }
 

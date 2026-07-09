@@ -75,10 +75,9 @@ function asText(result) {
 // Run the side-call. Either reuse the active chat connection (generateRaw,
 // which bypasses the RP persona), or route through a configured Connection
 // Manager profile with a sampler override.
-export async function runSideCall(systemPrompt, userPrompt) {
+export async function runSideCall(systemPrompt, userPrompt, maxTokens = 400) {
     const ctx = getST();
     const settings = getSettings();
-    const maxTokens = 400;
 
     if (settings.connectionProfileId) {
         const CM = ctx.ConnectionManagerRequestService;

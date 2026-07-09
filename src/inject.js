@@ -14,9 +14,12 @@ import { MACRO_NAME } from './constants.js';
 // The live value of {{frictionroll}}. Empty when no roll is active.
 let currentDirective = '';
 
-export function buildDirective(selected) {
+export function buildDirective(selected, emphatic = false) {
+    const lead = emphatic
+        ? 'CRITICAL — the previous reply failed to deliver this. It is mandatory, not optional. '
+        : '';
     return (
-        `This beat's outcome is decided: ${selected.tag} — ${selected.text} ` +
+        `${lead}This beat's outcome is decided: ${selected.tag} — ${selected.text} ` +
         `Build the whole reply around this — it's the event that moves this turn, the center of the scene, ` +
         `not a detail to drop into a clause and write past. Everything else in the reply reacts to it. ` +
         `Whatever makes it land — a misread, a change of heart, an interruption — do that, even against what just happened. ` +
@@ -40,6 +43,6 @@ export function registerFrictionrollMacro() {
     return true;
 }
 
-export function setDirective(selected) { currentDirective = buildDirective(selected); }
+export function setDirective(selected, emphatic = false) { currentDirective = buildDirective(selected, emphatic); }
 export function clearDirective() { currentDirective = ''; }
 export function getDirective() { return currentDirective; }

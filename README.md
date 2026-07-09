@@ -42,7 +42,11 @@ automatically before the reply is written:
    (World Info, other depth-0 entries) can be inserted between the rules and it.
 6. **Then** the main reply is generated, written around the directive. The
    directive never appears in chat.
-7. **Swiping** that reply automatically re-rolls the dice against the *same*
+7. After the reply, an optional **outcome evaluation** asks the model a plain
+   Yes/No: did the reply actually deliver the selected outcome? On **No**, the
+   reply is regenerated once with a stronger, emphasised directive — and that
+   single retry is accepted as-is (never re-evaluated, so there's no loop).
+8. **Swiping** that reply automatically re-rolls the dice against the *same*
    menu before the swipe completes — no new side-call, just a fresh roll and
    selection, so the beat's outcome space stays consistent. Moving on to a new
    message clears the directive so it can't leak into a later, unrelated turn.
@@ -76,6 +80,8 @@ only when you want an attempt adjudicated.
 - **Side-call temperature** — keep it low; this is structured output, not prose.
 - **Prompt to edit the action** before rolling (optional).
 - **Automatic re-roll on swipe** (default on).
+- **Evaluate outcome** (default on) — a Yes/No side-call after each reply;
+  on *No*, regenerate once with a stronger directive (the retry is final).
 - **Show roll result after the reply** (default off — showing it *before*
   defeats the purpose; *after* is fine as flavor).
 - **Debug view**: the last full menu, raw roll, selected outcome, and raw
