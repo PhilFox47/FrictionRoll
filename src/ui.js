@@ -101,13 +101,7 @@ const SETTINGS_HTML = `
       <label class="checkbox_label" for="or_autoRerollOnSwipe">
         <input type="checkbox" id="or_autoRerollOnSwipe"><span>Automatic fresh roll when swiping the reply</span>
       </label>
-      <label class="checkbox_label" for="or_complianceCheck">
-        <input type="checkbox" id="or_complianceCheck"><span>Check whether the outcome lands prominently (early in the reply)</span>
-      </label>
-      <label class="checkbox_label" for="or_autoRegenerateOnMiss">
-        <input type="checkbox" id="or_autoRegenerateOnMiss"><span>Regenerate once when the outcome is missing or buried</span>
-      </label>
-      <small class="or-hint">Requires the preset to embed the <code>{{frictionroll}}</code> macro in its final-instruction block. Compliance is a heuristic; small models won't hit 100%. Auto-regenerate costs one extra generation on a failed beat.</small>
+      <small class="or-hint">Requires the preset to embed the <code>{{frictionroll}}</code> macro in its final-instruction block.</small>
       <label class="checkbox_label" for="or_showResultAfter">
         <input type="checkbox" id="or_showResultAfter"><span>Show roll result as flavor AFTER the reply</span>
       </label>
@@ -140,8 +134,6 @@ const FIELDS = {
     or_autoRollOnSend: ['autoRollOnSend', 'bool'],
     or_promptForAction: ['promptForAction', 'bool'],
     or_autoRerollOnSwipe: ['autoRerollOnSwipe', 'bool'],
-    or_complianceCheck: ['complianceCheck', 'bool'],
-    or_autoRegenerateOnMiss: ['autoRegenerateOnMiss', 'bool'],
     or_showResultAfter: ['showResultAfter', 'bool'],
 };
 
@@ -221,9 +213,6 @@ function renderDebug(last, history) {
     }
     if (d.roll != null) lines.push(`roll: ${d.roll}/100`);
     if (d.selected) lines.push(`SELECTED -> ${d.selected.tag}: ${d.selected.text}`);
-    if (d.compliance) {
-        lines.push(`compliance: ${d.compliance.toUpperCase()}  (looked for: ${(d.complianceTokens || []).join(', ')}${d.complianceHits?.length ? `; matched: ${d.complianceHits.join(', ')}` : ''})`);
-    }
     lines.push('');
     lines.push('--- raw side-call response ---');
     lines.push(d.raw ?? '(empty)');

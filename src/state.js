@@ -19,16 +19,12 @@ import {
 } from './menu.js';
 import { rollD100, selectByRoll } from './roll.js';
 import { setDirective, clearDirective } from './inject.js';
-import { setDebug, annotateDebug } from './debug.js';
-import { checkCompliance } from './compliance.js';
+import { setDebug } from './debug.js';
 
 let pending = null;
 let busy = false;            // a pipeline (manual or swipe) is running
 let consumeOnReceive = false; // the in-flight normal generation is using the primed roll
 let showToastNext = false;    // a swipe reroll wants a post-hoc result toast
-let suppressReroll = false;   // a forced compliance regen: keep the same outcome
-let regenGuardMessageId = null; // messageId we've already auto-regenerated once
-let complianceRecheck = false;  // the next generation-end is a forced-regen result
 
 export function isBusy() { return busy; }
 export function getPending() { return pending; }
@@ -103,11 +99,9 @@ function rerollFromMenu(messageId) {
     const settings = getSettings();
     const roll = rollD100();
     const { selected, ranges } = selectByRoll(pending.menu, roll);
-    pending = { ...pending, menu: ranges, roll, selected, status: 'committed', messageId, compliance: undefined };
+    pending = { ...pending, menu: ranges, roll, selected, status: 'committed', messageId };
     setDirective(selected);
     showToastNext = settings.showResultAfter;
-    regenGuardMessageId = null; // a fresh selection gets its own auto-regen budget
-    complianceRecheck = false;
     console.info(`[Outcome Roll] swipe re-roll ${roll}/100 → ${selected.tag}: ${selected.text} (same menu, no side-call)`);
     setDebug({
         mode: 'swipe-reroll',
@@ -201,8 +195,6 @@ export async function outcomeRollGenerationInterceptor(chat, _contextSize, _abor
         // side-call. Keeps the beat's outcome space consistent; only the roll
         // (and thus the selected outcome) changes.
         if (SWIPE_TYPES.has(type)) {
-            // A forced compliance regen keeps the SAME outcome — don't re-roll.
-            if (suppressReroll) { suppressReroll = false; return chat; }
             if (!settings.autoRerollOnSwipe) return chat;
             if (!pending || pending.status !== 'committed') return chat;
             if (Array.isArray(pending.menu) && pending.menu.length >= 2) {
@@ -229,8 +221,6 @@ export async function outcomeRollGenerationInterceptor(chat, _contextSize, _abor
         if (pending?.status === 'committed') {
             clearDirective();
             pending = null;
-            regenGuardMessageId = null;
-            complianceRecheck = false;
         }
 
         if (!settings.autoRollOnSend) return chat; // manual-only mode
@@ -247,96 +237,23 @@ export async function outcomeRollGenerationInterceptor(chat, _contextSize, _abor
 // Register under the exact name declared in manifest.json's generate_interceptor.
 globalThis.outcomeRollGenerationInterceptor = outcomeRollGenerationInterceptor;
 
-// --- GENERATION_ENDED: primed -> committed, toast, and compliance check -----
+// --- GENERATION_ENDED: primed -> committed, and optional post-hoc toast -----
 export function onGenerationEnded() {
     if (busy) return; // ignore the side-call's own end event
     const settings = getSettings();
     if (!settings.enabled) return;
 
-    let landed = false; // a real adjudicated reply just completed
-
     if (consumeOnReceive && pending?.status === 'primed') {
         pending.status = 'committed';
         pending.messageId = (getST()?.chat?.length ?? 1) - 1;
         consumeOnReceive = false;
-        landed = true;
         if (settings.showResultAfter) showResultToast(pending);
     }
 
     if (showToastNext) {
         showToastNext = false;
-        landed = true;
         if (settings.showResultAfter && pending) showResultToast(pending);
     }
-
-    if (landed && pending?.selected && settings.complianceCheck) {
-        runComplianceCheck(settings);
-    } else if (complianceRecheck && pending?.selected && settings.complianceCheck) {
-        // The forced regeneration just finished — re-check its result. The
-        // per-turn guard prevents a second regen, so this only logs/records.
-        complianceRecheck = false;
-        runComplianceCheck(settings);
-    }
-}
-
-// Did the reply actually reflect the selected outcome PROMINENTLY (early / as a
-// main event, not buried in a late clause)? Log HIT / MISS / buried and record
-// it in the debug view. On a miss, regenerate once with the strengthened
-// directive; if it still misses, the recheck logs it rather than accepting it.
-function runComplianceCheck(settings) {
-    const chat = getST()?.chat ?? [];
-    const reply = chat[chat.length - 1]?.mes ?? '';
-    const res = checkCompliance(pending.selected.text, reply);
-    if (!res.checked) return;
-
-    pending.compliance = res.hit ? 'hit' : (res.presentButLate ? 'weak' : 'miss');
-    annotateDebug({
-        compliance: pending.compliance,
-        complianceTokens: res.ranked,
-        complianceHits: res.hit ? res.hits : res.anyHits,
-    });
-
-    if (res.hit) {
-        console.info(`[Outcome Roll] compliance HIT (${pending.selected.tag}) — outcome lands early; matched: ${res.hits.join(', ')}`);
-        return;
-    }
-
-    const why = res.presentButLate
-        ? `present but buried (not in the opening) — appeared later: ${res.anyHits.join(', ')}`
-        : `absent — none of [${res.ranked.join(', ')}] appeared`;
-    console.warn(`[Outcome Roll] compliance ${res.presentButLate ? 'WEAK' : 'MISS'} (${pending.selected.tag}) — ${why}.`);
-
-    // Regenerate at most once per turn, keeping the same outcome + directive.
-    if (settings.autoRegenerateOnMiss && regenGuardMessageId !== pending.messageId) {
-        regenGuardMessageId = pending.messageId;
-        complianceRecheck = true;
-        autoRegenerate();
-    }
-}
-
-function autoRegenerate() {
-    const ctx = getST();
-    if (typeof ctx?.generate !== 'function') {
-        console.warn('[Outcome Roll] auto-regenerate unavailable (no generate()).');
-        complianceRecheck = false;
-        return;
-    }
-    console.info('[Outcome Roll] compliance failed — regenerating once with the strengthened directive.');
-    suppressReroll = true; // the forced swipe must not re-roll
-    // Defer so this GENERATION_ENDED handler finishes before a new generation starts.
-    setTimeout(() => {
-        try {
-            Promise.resolve(ctx.generate('swipe')).catch((e) => {
-                suppressReroll = false;
-                complianceRecheck = false;
-                console.error('[Outcome Roll] auto-regenerate failed', e);
-            });
-        } catch (e) {
-            suppressReroll = false;
-            complianceRecheck = false;
-            console.error('[Outcome Roll] auto-regenerate failed', e);
-        }
-    }, 0);
 }
 
 // --- Chat switch / reset: wipe everything so nothing leaks across chats -----
@@ -345,8 +262,5 @@ export function onChatChanged() {
     pending = null;
     consumeOnReceive = false;
     showToastNext = false;
-    suppressReroll = false;
-    regenGuardMessageId = null;
-    complianceRecheck = false;
     busy = false;
 }

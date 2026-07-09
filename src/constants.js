@@ -47,13 +47,4 @@ export const defaultSettings = {
 
     // Automatic fresh roll when swiping/regenerating an adjudicated reply.
     autoRerollOnSwipe: true,
-
-    // After generation, check whether the reply actually reflects the selected
-    // outcome (distinctive-word overlap) and log HIT/MISS for visibility.
-    complianceCheck: true,
-
-    // On a compliance failure (outcome absent or buried), regenerate once with
-    // the same outcome + strengthened directive. Costs an extra generation; if
-    // the retry still fails it's logged rather than silently accepted.
-    autoRegenerateOnMiss: true,
 };
