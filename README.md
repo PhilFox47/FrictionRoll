@@ -1,15 +1,17 @@
 # Outcome Roll
 
 A [SillyTavern](https://github.com/SillyTavern/SillyTavern) extension that
-externalizes *"did this attempt actually work"* from the writing model's own
+externalizes *"how does the scene continue next"* from the writing model's own
 judgment, using a weighted, dice-resolved outcome menu instead.
 
-Most RP-tuned models default toward whatever outcome feels most narratively
-satisfying — usually success. Outcome Roll moves the decision **outside** the
-writing model: before the scene is written, a detached side-call generates a
-few possible outcomes with probabilities, a genuine local random roll picks
-one, and that outcome — not the model's preference — becomes what the model has
-to write around.
+Most RP-tuned models default toward whatever direction feels most narratively
+satisfying — usually the player succeeding and things going their way. Outcome
+Roll moves the decision **outside** the writing model: before the reply is
+written, a detached side-call proposes a few plausible ways the next beat could
+go — the player's action landing or not, but also how other characters react,
+outside events, discoveries, or the plot turning — each with a probability. A
+genuine local random roll picks one, and that development — not the model's
+preference — becomes what the reply is written around.
 
 It's a standalone companion to the **Friction Lite** preset (it reuses the same
 `WIN` / `COST` / `SETBACK` vocabulary), but works with any preset and is
@@ -20,10 +22,13 @@ completely inert until you trigger it.
 By default (Auto-roll on send), every message you send is adjudicated
 automatically before the reply is written:
 
-1. You send a message describing an uncertain attempt — nothing extra to click.
+1. You send a message — nothing extra to click.
 2. Before the main reply is generated, a detached side-call looks at your
    message plus recent context and produces a small weighted menu of
-   *substantively different* outcomes (`TAG|PERCENT|text`, one per line).
+   *substantively different* ways the next beat could go (`TAG|PERCENT|text`,
+   one per line) — the player's action succeeding or failing, but also external
+   developments like a character's reaction, an outside event, a discovery, or
+   the plot turning.
 3. The response is parsed strictly, validated for type diversity, and the
    percentages are normalized to sum to 100.
 4. A real random 1–100 is rolled **locally** (never by the model) and mapped

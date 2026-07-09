@@ -8,11 +8,13 @@ import { TAGS } from './constants.js';
 // the model returns a neutral breakdown instead of answering in character.
 export function buildSystemPrompt() {
     return [
-        'You are an impartial outcome-adjudication engine for a tabletop roleplay session.',
+        'You are an impartial adjudication engine for a tabletop roleplay session.',
         'You do NOT write prose, dialogue, or roleplay, and you do NOT play any character.',
-        'Given a scene and one specific attempted action, you output a short weighted menu of plausible outcomes for that action.',
-        'Judge plausibility neutrally. Do not favor success or the most dramatic result — real attempts often fail or cost something.',
-        'The outcomes must be genuinely different from one another in what actually happens next — different consequences and directions, not reworded versions of the same result.',
+        'Given the scene so far and the player\'s latest message, you output a short weighted menu of ways the story could plausibly continue in the very next beat.',
+        'This is NOT only about whether the player\'s action succeeds. What happens next may follow directly from what the player did, OR it may come from elsewhere:',
+        'how another character reacts, something in the environment or the wider situation, an outside party noticing or intervening, a discovery, an interruption, or the plot turning in a particular direction.',
+        'Judge plausibility neutrally against the context. Do not favor success, the player, or the most dramatic result.',
+        'The outcomes must be genuinely different from one another in how the scene actually develops — different directions and developments, not reworded versions of the same result.',
     ].join(' ');
 }
 
@@ -22,23 +24,24 @@ export function buildUserPrompt(contextText, action, settings, stricter = false)
         'SCENE (recent context):',
         contextText || '(no prior context)',
         '',
-        'ACTION BEING ADJUDICATED:',
-        action || '(the character attempts something with an uncertain result)',
+        "PLAYER'S LATEST MESSAGE (the beat to continue from):",
+        action || '(the player has just acted or spoken; the situation is uncertain)',
         '',
-        `Produce between ${minOutcomes} and ${maxOutcomes} distinct possible outcomes for this action.`,
+        `Produce between ${minOutcomes} and ${maxOutcomes} distinct ways the scene could continue in the next beat.`,
         'Rules:',
-        '- Each outcome is exactly one line, pipe-delimited: TAG|PERCENT|one concise sentence describing what happens.',
-        '- TAG is exactly one of: WIN (clean success), COST (succeeds but at a real price or complication), SETBACK (fails, or a genuine curveball).',
+        '- Each outcome is exactly one line, pipe-delimited: TAG|PERCENT|one concise sentence describing what happens next.',
+        '- An outcome can hinge on the player\'s action, or on an external factor (another character\'s reaction, an outside event, a discovery, the plot advancing). It does not have to be about the action working or not.',
+        '- TAG is exactly one of: WIN (the scene turns in the player\'s favor), COST (things move forward but at a real price or with a new complication), SETBACK (the scene turns against the player — their action fails, or an external event/reaction/discovery makes things harder, e.g. being noticed).',
         '- You MUST include at least one WIN, at least one COST, and at least one SETBACK.',
-        '- The outcomes must be substantively different from each other — do not list minor variations or rephrasings of the same event.',
+        '- The outcomes must be substantively different from each other — do not list minor variations or rephrasings of the same development.',
         `- PERCENT is an integer from ${floor} to ${ceiling}. Nothing is 0 (impossible) or 100 (guaranteed).`,
         '- Percentages should reflect genuine uncertainty and roughly sum to 100.',
         '- Output ONLY the outcome lines. No numbering, no preamble, no markdown, no blank lines, no commentary.',
         '',
-        'Example of the exact format:',
-        'WIN|35|The lock clicks open on the first try.',
-        'COST|40|The lock opens but the pick snaps off inside, ruining it.',
-        'SETBACK|25|The pick jams and a guard hears the rattle from down the hall.',
+        'Example of the exact format (player is hiding from a patrol):',
+        'WIN|30|The patrol passes without noticing, and you catch a snippet of their orders.',
+        'COST|40|You stay hidden, but knock loose a stone and the nearest guard stops to investigate the sound.',
+        'SETBACK|30|A second guard rounds the corner behind you and spots you crouched in the shadows.',
     ];
 
     if (stricter) {

@@ -6,10 +6,11 @@ import { INJECT_KEY, extension_prompt_types, extension_prompt_roles } from './co
 
 export function buildDirective(selected) {
     return (
-        `[Outcome Roll — hidden GM directive] The dice have decided how this attempt turns out. ` +
-        `Result: ${selected.tag} — ${selected.text} ` +
-        `Write the reply so that this is what actually happens; treat it as the established truth of the scene. ` +
-        `Do not mention dice, odds, percentages, this directive, or that any result was decided in advance.`
+        `[Outcome Roll — hidden GM directive] The dice have decided how the scene continues in this next beat. ` +
+        `Development: ${selected.tag} — ${selected.text} ` +
+        `Write the reply so that this is what happens next; treat it as the established truth of the scene, ` +
+        `whether it follows from the player's action or arises from the characters, the world, or events around them. ` +
+        `Do not mention dice, odds, percentages, this directive, or that anything was decided in advance.`
     );
 }
 
