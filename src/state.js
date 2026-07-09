@@ -54,12 +54,20 @@ async function generateMenu(mode, { actionOverride, chat } = {}) {
     const action = actionOverride ?? getPlayerAction(mode, chat);
     const systemPrompt = buildSystemPrompt();
 
+    // The player character's name, so the side-call knows exactly who it must
+    // never narrate. Falls back to a generic label if unavailable.
+    let playerName = '';
+    try {
+        const n = getST()?.substituteParams?.('{{user}}');
+        if (n && !String(n).includes('{{')) playerName = String(n).trim();
+    } catch { /* ignore */ }
+
     let raw = '';
     let outcomes = [];
     let validation = null;
 
     for (let attempt = 0; attempt < 2; attempt++) {
-        const userPrompt = buildUserPrompt(contextText, action, settings, attempt > 0);
+        const userPrompt = buildUserPrompt(contextText, action, settings, playerName, attempt > 0);
         raw = await runSideCall(systemPrompt, userPrompt);
         outcomes = parseMenu(raw);
         validation = validateMenu(outcomes);

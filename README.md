@@ -28,7 +28,9 @@ automatically before the reply is written:
    *substantively different* ways the next beat could go (`TAG|PERCENT|text`,
    one per line) — the player's action succeeding or failing, but also external
    developments like a character's reaction, an outside event, a discovery, or
-   the plot turning.
+   the plot turning. Outcomes only ever describe the world's response — what
+   other characters and the environment do — never the player's own actions,
+   words, or reactions. Those are always the player's to decide.
 3. The response is parsed strictly, validated for type diversity, and the
    percentages are normalized to sum to 100.
 4. A real random 1–100 is rolled **locally** (never by the model) and mapped

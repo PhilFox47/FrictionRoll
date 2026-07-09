@@ -13,13 +13,16 @@ export function buildSystemPrompt() {
         'Given the scene so far and the player\'s latest message, you output a short weighted menu of ways the story could plausibly continue in the very next beat.',
         'This is NOT only about whether the player\'s action succeeds. What happens next may follow directly from what the player did, OR it may come from elsewhere:',
         'how another character reacts, something in the environment or the wider situation, an outside party noticing or intervening, a discovery, an interruption, or the plot turning in a particular direction.',
+        'ABSOLUTE RULE: outcomes describe ONLY what happens outside the player\'s own control — what other characters do or say, how the environment or situation shifts, what events occur.',
+        'You must NEVER state, imply, or dictate the player character\'s own actions, dialogue, thoughts, feelings, or reactions. Those belong to the player alone. You decide only what the player is reacting TO, never how they react.',
         'Judge plausibility neutrally against the context. Do not favor success, the player, or the most dramatic result.',
         'The outcomes must be genuinely different from one another in how the scene actually develops — different directions and developments, not reworded versions of the same result.',
     ].join(' ');
 }
 
-export function buildUserPrompt(contextText, action, settings, stricter = false) {
+export function buildUserPrompt(contextText, action, settings, playerName = '', stricter = false) {
     const { minOutcomes, maxOutcomes, floor, ceiling } = settings;
+    const who = playerName ? `the player character (${playerName})` : 'the player character';
     const lines = [
         'SCENE (recent context):',
         contextText || '(no prior context)',
@@ -29,19 +32,21 @@ export function buildUserPrompt(contextText, action, settings, stricter = false)
         '',
         `Produce between ${minOutcomes} and ${maxOutcomes} distinct ways the scene could continue in the next beat.`,
         'Rules:',
-        '- Each outcome is exactly one line, pipe-delimited: TAG|PERCENT|one concise sentence describing what happens next.',
+        `- CRITICAL: each outcome describes ONLY what happens around or to ${who} — what other characters do or say, how the environment or situation changes, what events occur. NEVER describe ${who}'s own actions, words, thoughts, feelings, or reactions. You decide what they react TO, never how they react.`,
+        '  Bad (dictates the player): "She laughs, and he laughs along as the tension breaks."  Good (external only): "She dissolves into laughter, the tension in the room breaking."',
         '- An outcome can hinge on the player\'s action, or on an external factor (another character\'s reaction, an outside event, a discovery, the plot advancing). It does not have to be about the action working or not.',
         '- TAG is exactly one of: WIN (the scene turns in the player\'s favor), COST (things move forward but at a real price or with a new complication), SETBACK (the scene turns against the player — their action fails, or an external event/reaction/discovery makes things harder, e.g. being noticed).',
         '- You MUST include at least one WIN, at least one COST, and at least one SETBACK.',
         '- The outcomes must be substantively different from each other — do not list minor variations or rephrasings of the same development.',
         `- PERCENT is an integer from ${floor} to ${ceiling}. Nothing is 0 (impossible) or 100 (guaranteed).`,
         '- Percentages should reflect genuine uncertainty and roughly sum to 100.',
+        '- Each outcome is exactly one line, pipe-delimited: TAG|PERCENT|one concise sentence describing what happens next.',
         '- Output ONLY the outcome lines. No numbering, no preamble, no markdown, no blank lines, no commentary.',
         '',
-        'Example of the exact format (player is hiding from a patrol):',
-        'WIN|30|The patrol passes without noticing, and you catch a snippet of their orders.',
-        'COST|40|You stay hidden, but knock loose a stone and the nearest guard stops to investigate the sound.',
-        'SETBACK|30|A second guard rounds the corner behind you and spots you crouched in the shadows.',
+        'Example of the exact format (player is hiding from a patrol) — note every outcome describes only other characters and the world, never the player:',
+        'WIN|30|The patrol strides past the crates and rounds the far corner without a single glance aside.',
+        'COST|40|A loose stone clatters somewhere in the dark and the nearest guard halts, turning toward the sound.',
+        'SETBACK|30|A second guard steps around the corner, his lantern swinging up toward the shadows.',
     ];
 
     if (stricter) {
