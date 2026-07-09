@@ -2,31 +2,16 @@
 
 export const MODULE_NAME = 'outcome-roll';
 
-// Key used with setExtensionPrompt for the hidden GM directive.
-export const INJECT_KEY = 'outcome_roll_directive';
+// The rolled outcome reaches the model through this macro, NOT a positional
+// prompt injection. The preset embeds {{frictionroll}} inside its own
+// final-instruction block, so nothing can be inserted between the rules and the
+// directive.
+export const MACRO_NAME = 'frictionroll';
 
 // The three-way tag vocabulary, intentionally mirroring Friction Lite's
 // fail-forward rule (clean win / works-but-costs / fails-but-gains).
 // If Friction Lite's rule 8 wording changes, update these to match.
 export const TAGS = ['WIN', 'COST', 'SETBACK'];
-
-// Verified verbatim from SillyTavern public/script.js. These are stable
-// numeric enums; hardcoding the confirmed values keeps the extension free of
-// fragile relative imports (everything else comes from SillyTavern.getContext()).
-//   extension_prompt_types: NONE:-1, IN_PROMPT:0, IN_CHAT:1, BEFORE_PROMPT:2
-//   extension_prompt_roles: SYSTEM:0, USER:1, ASSISTANT:2
-export const extension_prompt_types = {
-    NONE: -1,
-    IN_PROMPT: 0,
-    IN_CHAT: 1,
-    BEFORE_PROMPT: 2,
-};
-
-export const extension_prompt_roles = {
-    SYSTEM: 0,
-    USER: 1,
-    ASSISTANT: 2,
-};
 
 export const defaultSettings = {
     enabled: true,
@@ -62,4 +47,13 @@ export const defaultSettings = {
 
     // Automatic fresh roll when swiping/regenerating an adjudicated reply.
     autoRerollOnSwipe: true,
+
+    // After generation, check whether the reply actually reflects the selected
+    // outcome (distinctive-word overlap) and log HIT/MISS for visibility.
+    complianceCheck: true,
+
+    // Experimental: on a compliance MISS, regenerate once keeping the same
+    // outcome. Off by default — it costs an extra generation and won't reach
+    // 100% on small models.
+    autoRegenerateOnMiss: false,
 };

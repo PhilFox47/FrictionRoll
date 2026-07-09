@@ -11,6 +11,7 @@ import { getSettings } from './src/settings.js';
 // automatic trigger, fired and awaited by SillyTavern before the main prompt is
 // built. The events below only handle post-generation bookkeeping.
 import { onGenerationEnded, onChatChanged } from './src/state.js';
+import { registerFrictionrollMacro } from './src/inject.js';
 import { initUI } from './src/ui.js';
 
 function wireEvents(ctx) {
@@ -33,10 +34,11 @@ function boot() {
         return;
     }
     getSettings();      // ensure persisted defaults exist
+    const macroOk = registerFrictionrollMacro(); // {{frictionroll}} -> directive
     wireEvents(ctx);
     initUI();
     const registered = typeof globalThis.outcomeRollGenerationInterceptor === 'function';
-    console.log(`[Outcome Roll] loaded. generate_interceptor registered: ${registered}`);
+    console.log(`[Outcome Roll] loaded. interceptor: ${registered}, {{frictionroll}} macro: ${macroOk}`);
 }
 
 if (globalThis.jQuery) {

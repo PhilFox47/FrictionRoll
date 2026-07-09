@@ -1,45 +1,43 @@
-// Injection of the selected outcome as a hidden GM directive, positioned for
-// maximum model attention, plus clearing it so it can't leak into later turns.
+// The rolled outcome reaches the model through a SillyTavern macro,
+// {{frictionroll}}, NOT through a positional prompt injection.
+//
+// Positional injection (setExtensionPrompt at a depth) competes for a slot in
+// the assembled prompt, and World Info / other depth-0 content can land after
+// it — pushing the directive out of the "last thing the model sees" position.
+// Instead, the preset's final-instruction block embeds the literal
+// {{frictionroll}} placeholder, so the directive resolves *inside* that same
+// string and nothing in the pipeline can be inserted between the rules and it.
 
 import { getST } from './settings.js';
-import { INJECT_KEY, extension_prompt_types, extension_prompt_roles } from './constants.js';
+import { MACRO_NAME } from './constants.js';
+
+// The live value of {{frictionroll}}. Empty when no roll is active.
+let currentDirective = '';
 
 export function buildDirective(selected) {
     return (
-        `[Outcome Roll — hidden GM directive] The dice have decided how the scene continues in this next beat. ` +
-        `Development: ${selected.tag} — ${selected.text} ` +
-        `Write the reply so that this is what happens next; treat it as the established truth of the scene, ` +
-        `whether it follows from the player's action or arises from the characters, the world, or events around them. ` +
-        `Do not mention dice, odds, percentages, this directive, or that anything was decided in advance.`
+        `The dice determined this outcome is a ${selected.tag}: ${selected.text} ` +
+        `Write the reply consistent with this, whether it follows from the player's action or from the characters and world around them. ` +
+        `Do not mention dice, odds, percentages, or that anything was decided in advance.`
     );
 }
 
-// IN_CHAT at depth 0 places the directive after the last chat message — as
-// close to generation as the API allows, the same neighborhood as a preset's
-// final-instruction block, which is the position with the most reliable
-// attention. Injected with the SYSTEM role and never scanned for triggers.
-export function applyInjection(selected) {
+// Register once at load. The value is a function, so the macro always resolves
+// to the latest directive without needing to re-register.
+export function registerFrictionrollMacro() {
     const ctx = getST();
-    if (!ctx?.setExtensionPrompt) return;
-    ctx.setExtensionPrompt(
-        INJECT_KEY,
-        buildDirective(selected),
-        extension_prompt_types.IN_CHAT,
-        0,
-        false,
-        extension_prompt_roles.SYSTEM,
+    if (!ctx?.registerMacro) {
+        console.warn(`[Outcome Roll] registerMacro unavailable — {{${MACRO_NAME}}} will not resolve.`);
+        return false;
+    }
+    ctx.registerMacro(
+        MACRO_NAME,
+        () => currentDirective,
+        'Outcome Roll directive for the current pending turn (empty when no roll is active).',
     );
+    return true;
 }
 
-export function clearInjection() {
-    const ctx = getST();
-    if (!ctx?.setExtensionPrompt) return;
-    ctx.setExtensionPrompt(
-        INJECT_KEY,
-        '',
-        extension_prompt_types.IN_CHAT,
-        0,
-        false,
-        extension_prompt_roles.SYSTEM,
-    );
-}
+export function setDirective(selected) { currentDirective = buildDirective(selected); }
+export function clearDirective() { currentDirective = ''; }
+export function getDirective() { return currentDirective; }

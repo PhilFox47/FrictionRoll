@@ -34,11 +34,15 @@ automatically before the reply is written:
 4. A real random 1–100 is rolled **locally** (never by the model) and mapped
    against the menu's cumulative ranges — higher-probability outcomes are more
    likely to be selected.
-5. The selected outcome is injected as a hidden GM directive positioned at the
-   end of context, where model attention is most reliable.
+5. The selected outcome becomes the value of a SillyTavern macro,
+   `{{frictionroll}}`, which the preset embeds inside its own final-instruction
+   block — so the directive resolves *inside* that block's text and nothing
+   (World Info, other depth-0 entries) can be inserted between the rules and it.
 6. **Then** the main reply is generated, written around the directive. The
    directive never appears in chat.
-7. **Swiping** that reply automatically runs a fresh menu + roll before the
+7. After generation, a heuristic checks whether the reply actually reflected the
+   outcome and logs HIT/MISS (optionally regenerating once).
+8. **Swiping** that reply automatically runs a fresh menu + roll before the
    swipe completes. Moving on to a new message clears the directive so it can't
    leak into a later, unrelated turn.
 
@@ -88,13 +92,24 @@ console and the debug view.
 Use SillyTavern's **Install Extension** with this repository URL, or clone into
 `SillyTavern/public/scripts/extensions/third-party/`.
 
+## Preset setup — the `{{frictionroll}}` macro
+
+The directive is delivered through a macro, not a positional injection, so the
+preset must place `{{frictionroll}}` where the directive should appear —
+ideally at the very end of its final-instruction block. Friction Lite v6
+already bakes this placeholder into that block. With any other preset, add
+`{{frictionroll}}` yourself; without it, rolls still happen but the model never
+sees the outcome. The macro resolves to an empty string whenever no roll is
+active, so it's harmless when idle.
+
 ## Compatibility with Friction Lite
 
 The `WIN` / `COST` / `SETBACK` tags intentionally mirror Friction Lite's
 fail-forward rule. The two aren't automatically linked — if that rule's wording
 changes, update the tag vocabulary in `src/constants.js` to match. The
 extension has no dependency on Friction Lite (or any preset) and is inert
-without one.
+without one (aside from needing the `{{frictionroll}}` placeholder above to
+actually reach the model).
 
 ## Out of scope (v1)
 
