@@ -6,9 +6,11 @@
 // relative imports into the app's source.
 
 import { getSettings } from './src/settings.js';
-import {
-    onGenerationStarted, onGenerationEnded, onChatChanged,
-} from './src/state.js';
+// Importing state.js registers globalThis.outcomeRollGenerationInterceptor,
+// the function named in manifest.json's "generate_interceptor" — that is the
+// automatic trigger, fired and awaited by SillyTavern before the main prompt is
+// built. The events below only handle post-generation bookkeeping.
+import { onGenerationEnded, onChatChanged } from './src/state.js';
 import { initUI } from './src/ui.js';
 
 function wireEvents(ctx) {
@@ -17,12 +19,9 @@ function wireEvents(ctx) {
         console.warn('[Outcome Roll] event system unavailable; extension inert.');
         return;
     }
-    // GENERATION_STARTED is emitted early in Generate() with the generation
-    // type ('normal', 'swipe', 'regenerate', 'quiet', ...). eventSource.emit
-    // awaits async listeners, so the swipe branch can run the full pipeline
-    // before the swipe builds its prompt.
-    eventSource.on(event_types.GENERATION_STARTED, onGenerationStarted);
+    // GENERATION_ENDED: primed -> committed + optional post-hoc result toast.
     eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
+    // CHAT_CHANGED: wipe state so nothing leaks across chats.
     eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
 }
 
@@ -36,7 +35,8 @@ function boot() {
     getSettings();      // ensure persisted defaults exist
     wireEvents(ctx);
     initUI();
-    console.log('[Outcome Roll] loaded.');
+    const registered = typeof globalThis.outcomeRollGenerationInterceptor === 'function';
+    console.log(`[Outcome Roll] loaded. generate_interceptor registered: ${registered}`);
 }
 
 if (globalThis.jQuery) {

@@ -33,10 +33,12 @@ function lastUserMessage(chat) {
 //  - manual mode: prefer the unsent draft in the composer (that IS the most
 //    recent thing the player is about to do); fall back to the last chat
 //    message from the player.
-//  - swipe mode: the user message that prompted the reply being regenerated.
-export function getPlayerAction(mode) {
+//  - send/swipe mode: the last player message in the prompt-building chat.
+// `chatOverride` is the array the interceptor hands us (the exact chat the
+// upcoming generation will build from); falls back to the live chat.
+export function getPlayerAction(mode, chatOverride) {
     const ctx = getST();
-    const chat = ctx?.chat ?? [];
+    const chat = chatOverride ?? ctx?.chat ?? [];
 
     if (mode === 'manual' && globalThis.jQuery) {
         const draft = String(globalThis.jQuery('#send_textarea').val() ?? '').trim();
@@ -48,11 +50,11 @@ export function getPlayerAction(mode) {
 }
 
 // Build the trimmed, speaker-labeled context block.
-export async function gatherContext(mode) {
+export async function gatherContext(mode, chatOverride) {
     const ctx = getST();
     const settings = getSettings();
 
-    let chat = (ctx?.chat ?? []).filter((m) => !m.is_system);
+    let chat = (chatOverride ?? ctx?.chat ?? []).filter((m) => !m.is_system);
 
     // When regenerating a reply, drop the trailing assistant message being
     // swiped so we adjudicate the action, not the attempt we're replacing.

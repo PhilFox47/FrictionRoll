@@ -45,10 +45,10 @@ function showResultToast(p) {
 // The full pipeline: gather -> side-call (+one strict retry) -> parse/validate
 // -> normalize -> roll -> select. Throws on unrecoverable failure so callers
 // can fail open.
-async function generateMenu(mode, actionOverride) {
+async function generateMenu(mode, { actionOverride, chat } = {}) {
     const settings = getSettings();
-    const contextText = await gatherContext(mode);
-    const action = actionOverride ?? getPlayerAction(mode);
+    const contextText = await gatherContext(mode, chat);
+    const action = actionOverride ?? getPlayerAction(mode, chat);
     const systemPrompt = buildSystemPrompt();
 
     let raw = '';
@@ -105,7 +105,7 @@ export async function onManualRoll() {
             }
         }
 
-        const result = await generateMenu('manual', actionOverride);
+        const result = await generateMenu('manual', { actionOverride });
         pending = { ...result, status: 'primed', messageId: null };
         applyInjection(result.selected);
         // Deliberately does NOT reveal the roll/outcome here — that would let it
@@ -121,23 +121,19 @@ export async function onManualRoll() {
     }
 }
 
-// Guard against both emit shapes: (type, options, dryRun) and (type, dryRun).
-function isDryRun(options, dryRun) {
-    return dryRun === true || options === true || options?.dryRun === true;
-}
-
 // Run the full pipeline inline and inject, guarding re-entrancy from our own
 // side-call generations. `committed` marks a turn that already produced a reply
 // (so it re-rolls on swipe); `primed` marks a roll about to be consumed by the
 // generation we're standing in front of. Fails open: on error, inject nothing.
-async function runInlineRoll(mode, { committed = false, messageId = null } = {}) {
+async function runInlineRoll(mode, { committed = false, messageId = null, chat = null } = {}) {
     const settings = getSettings();
     busy = true;
     try {
-        const result = await generateMenu(mode);
+        const result = await generateMenu(mode, { chat });
         pending = { ...result, status: committed ? 'committed' : 'primed', messageId };
         applyInjection(result.selected);
         if (committed) showToastNext = settings.showResultAfter; // reveal after it writes
+        console.info(`[Outcome Roll] ${mode} roll ${result.roll}/100 → ${result.selected.tag}: ${result.selected.text}`);
         return true;
     } catch (e) {
         console.error(`[Outcome Roll] ${mode} roll failed`, e);
@@ -149,49 +145,61 @@ async function runInlineRoll(mode, { committed = false, messageId = null } = {})
     }
 }
 
-// --- GENERATION_STARTED: the automatic trigger ------------------------------
-// Fires before the prompt is built; eventSource.emit awaits async listeners, so
-// the whole roll pipeline (menu + weighted dice) completes here and the main
-// generation then builds with the winning outcome already injected.
-export async function onGenerationStarted(type, options, dryRun) {
-    if (isDryRun(options, dryRun)) return;
-    if (busy) return; // ignore re-entrancy from our own side-call generations
-    const settings = getSettings();
-    if (!settings.enabled) return;
+// Generation types that are NOT a fresh player send and must not auto-roll.
+const SWIPE_TYPES = new Set(['swipe', 'regenerate']);
+const SKIP_TYPES = new Set(['quiet', 'impersonate', 'continue', 'ask_command']);
 
-    const isSwipe = type === 'swipe' || type === 'regenerate';
+// --- The automatic trigger: a SillyTavern generate interceptor --------------
+// Declared in manifest.json ("generate_interceptor") and registered on
+// globalThis below. SillyTavern awaits this before building the main prompt and
+// passes the prompt-building chat + generation type, so the whole roll pipeline
+// runs here and the reply is then generated with the winning outcome injected.
+// It MUST return the chat array. This is the same reliable hook working
+// extensions use; a plain send does not emit a usable 'normal' event type.
+export async function outcomeRollGenerationInterceptor(chat, _contextSize, _abort, type) {
+    try {
+        if (busy) return chat; // re-entrancy from our own side-call generation
+        const settings = getSettings();
+        if (!settings.enabled) return chat;
 
-    if (isSwipe) {
-        if (!settings.autoRerollOnSwipe) return;
-        // Only re-roll a turn we actually adjudicated; leave normal swipes alone.
-        if (!pending || pending.status !== 'committed') return;
-        await runInlineRoll('swipe', { committed: true, messageId: pending.messageId });
-        return;
+        // Swipe / regenerate: re-roll a turn we actually adjudicated.
+        if (SWIPE_TYPES.has(type)) {
+            if (!settings.autoRerollOnSwipe) return chat;
+            if (!pending || pending.status !== 'committed') return chat;
+            await runInlineRoll('swipe', { committed: true, messageId: pending.messageId, chat });
+            return chat;
+        }
+
+        // Background / utility generations are never adjudicated.
+        if (SKIP_TYPES.has(type)) return chat;
+
+        // Otherwise this is a fresh player send (type is 'normal', undefined, '').
+        // A primed roll (manual pre-roll, or a double-fire of this same send)
+        // takes precedence: consume it rather than rolling again.
+        if (pending?.status === 'primed') {
+            consumeOnReceive = true;
+            return chat;
+        }
+
+        // Advancing to a new turn — clear any stale committed directive first.
+        if (pending?.status === 'committed') {
+            clearInjection();
+            pending = null;
+        }
+
+        if (!settings.autoRollOnSend) return chat; // manual-only mode
+
+        const ok = await runInlineRoll('send', { committed: false, messageId: null, chat });
+        if (ok) consumeOnReceive = true; // this generation consumes it; commit on end
+        return chat;
+    } catch (e) {
+        console.error('[Outcome Roll] interceptor error', e);
+        return chat; // fail open — never block the player's generation
     }
-
-    if (type !== 'normal') return; // ignore quiet/impersonate/continue
-
-    // A manual pre-roll (button/command) takes precedence: consume it as-is
-    // rather than rolling again for the same send.
-    if (pending?.status === 'primed') {
-        consumeOnReceive = true;
-        return;
-    }
-
-    // Advancing to a new turn — clear any stale committed directive first so it
-    // can't bleed into this reply.
-    if (pending?.status === 'committed') {
-        clearInjection();
-        pending = null;
-    }
-
-    if (!settings.autoRollOnSend) return; // manual-only mode: no roll on send
-
-    // Auto-roll for this send. The just-sent user message is already in chat,
-    // so it becomes the action being adjudicated.
-    const ok = await runInlineRoll('send', { committed: false, messageId: null });
-    if (ok) consumeOnReceive = true; // this generation consumes it; commit on end
 }
+
+// Register under the exact name declared in manifest.json's generate_interceptor.
+globalThis.outcomeRollGenerationInterceptor = outcomeRollGenerationInterceptor;
 
 // --- GENERATION_ENDED: primed -> committed, and post-hoc result toast -------
 export function onGenerationEnded() {

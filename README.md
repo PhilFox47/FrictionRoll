@@ -42,8 +42,11 @@ automatically before the reply is written:
    swipe completes. Moving on to a new message clears the directive so it can't
    leak into a later, unrelated turn.
 
-Because SillyTavern's event emitter awaits async listeners, the roll hooks
-`GENERATION_STARTED` and completes *before* the generation builds its prompt.
+The roll is wired as a SillyTavern **generate interceptor** (declared in
+`manifest.json`), which SillyTavern awaits *before* building the main prompt —
+so the whole pipeline completes and the outcome is injected before the reply is
+generated. This is the same reliable hook other pre-generation extensions use;
+a plain send does not emit a usable `'normal'` event type.
 
 ## Trigger model
 
