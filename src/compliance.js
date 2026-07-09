@@ -19,12 +19,40 @@ export function distinctiveTokens(text) {
     return uniq.sort((a, b) => b.length - a.length);
 }
 
-// Returns { checked, hit, ranked, hits }. `checked` is false when the outcome
-// text has no usable distinctive words to look for.
+// The "early" part of the reply, where a decided outcome should land if it's
+// actually the center of the beat: the opening paragraph(s), up to roughly the
+// first 400–600 characters. This is the prominence proxy — an outcome that only
+// shows up after this window was buried, not built around.
+function earlyWindow(text) {
+    const paras = String(text ?? '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    let w = '';
+    for (const p of paras) {
+        w += (w ? '\n' : '') + p;
+        if (w.length >= 400) break;
+    }
+    return w.slice(0, 600);
+}
+
+// Compliance now means PROMINENT, not merely present. A HIT requires a
+// distinctive outcome word to appear in the early window (opening paragraph /
+// first main clauses). If the words appear only later, that's `presentButLate`
+// — the "included but weightless" case — which counts as a miss.
+// Returns { checked, hit, ranked, hits, presentButLate, anyHits }.
 export function checkCompliance(outcomeText, replyText) {
     const ranked = distinctiveTokens(outcomeText).slice(0, 4);
-    if (!ranked.length) return { checked: false, hit: false, ranked: [], hits: [] };
-    const reply = String(replyText ?? '').toLowerCase();
-    const hits = ranked.filter((w) => reply.includes(w));
-    return { checked: true, hit: hits.length > 0, ranked, hits };
+    if (!ranked.length) {
+        return { checked: false, hit: false, ranked: [], hits: [], presentButLate: false, anyHits: [] };
+    }
+    const replyLower = String(replyText ?? '').toLowerCase();
+    const earlyLower = earlyWindow(replyLower);
+    const hits = ranked.filter((w) => earlyLower.includes(w));
+    const anyHits = ranked.filter((w) => replyLower.includes(w));
+    return {
+        checked: true,
+        hit: hits.length > 0,
+        ranked,
+        hits,
+        presentButLate: hits.length === 0 && anyHits.length > 0,
+        anyHits,
+    };
 }

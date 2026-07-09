@@ -28,6 +28,7 @@ let consumeOnReceive = false; // the in-flight normal generation is using the pr
 let showToastNext = false;    // a swipe reroll wants a post-hoc result toast
 let suppressReroll = false;   // a forced compliance regen: keep the same outcome
 let regenGuardMessageId = null; // messageId we've already auto-regenerated once
+let complianceRecheck = false;  // the next generation-end is a forced-regen result
 
 export function isBusy() { return busy; }
 export function getPending() { return pending; }
@@ -199,6 +200,7 @@ export async function outcomeRollGenerationInterceptor(chat, _contextSize, _abor
             clearDirective();
             pending = null;
             regenGuardMessageId = null;
+            complianceRecheck = false;
         }
 
         if (!settings.autoRollOnSend) return chat; // manual-only mode
@@ -239,30 +241,45 @@ export function onGenerationEnded() {
 
     if (landed && pending?.selected && settings.complianceCheck) {
         runComplianceCheck(settings);
+    } else if (complianceRecheck && pending?.selected && settings.complianceCheck) {
+        // The forced regeneration just finished — re-check its result. The
+        // per-turn guard prevents a second regen, so this only logs/records.
+        complianceRecheck = false;
+        runComplianceCheck(settings);
     }
 }
 
-// Did the reply actually reflect the selected outcome? Log HIT/MISS and record
-// it in the debug view. Optionally regenerate once (keeping the same outcome).
+// Did the reply actually reflect the selected outcome PROMINENTLY (early / as a
+// main event, not buried in a late clause)? Log HIT / MISS / buried and record
+// it in the debug view. On a miss, regenerate once with the strengthened
+// directive; if it still misses, the recheck logs it rather than accepting it.
 function runComplianceCheck(settings) {
     const chat = getST()?.chat ?? [];
     const reply = chat[chat.length - 1]?.mes ?? '';
     const res = checkCompliance(pending.selected.text, reply);
     if (!res.checked) return;
 
-    pending.compliance = res.hit ? 'hit' : 'miss';
-    annotateDebug({ compliance: pending.compliance, complianceTokens: res.ranked, complianceHits: res.hits });
+    pending.compliance = res.hit ? 'hit' : (res.presentButLate ? 'weak' : 'miss');
+    annotateDebug({
+        compliance: pending.compliance,
+        complianceTokens: res.ranked,
+        complianceHits: res.hit ? res.hits : res.anyHits,
+    });
 
     if (res.hit) {
-        console.info(`[Outcome Roll] compliance HIT (${pending.selected.tag}) — matched: ${res.hits.join(', ')}`);
+        console.info(`[Outcome Roll] compliance HIT (${pending.selected.tag}) — outcome lands early; matched: ${res.hits.join(', ')}`);
         return;
     }
 
-    console.warn(`[Outcome Roll] compliance MISS (${pending.selected.tag}) — none of [${res.ranked.join(', ')}] appeared in the reply.`);
+    const why = res.presentButLate
+        ? `present but buried (not in the opening) — appeared later: ${res.anyHits.join(', ')}`
+        : `absent — none of [${res.ranked.join(', ')}] appeared`;
+    console.warn(`[Outcome Roll] compliance ${res.presentButLate ? 'WEAK' : 'MISS'} (${pending.selected.tag}) — ${why}.`);
 
-    // Regenerate at most once per turn, keeping the same outcome.
+    // Regenerate at most once per turn, keeping the same outcome + directive.
     if (settings.autoRegenerateOnMiss && regenGuardMessageId !== pending.messageId) {
         regenGuardMessageId = pending.messageId;
+        complianceRecheck = true;
         autoRegenerate();
     }
 }
@@ -271,19 +288,22 @@ function autoRegenerate() {
     const ctx = getST();
     if (typeof ctx?.generate !== 'function') {
         console.warn('[Outcome Roll] auto-regenerate unavailable (no generate()).');
+        complianceRecheck = false;
         return;
     }
-    console.info('[Outcome Roll] compliance MISS — regenerating once with the same outcome.');
+    console.info('[Outcome Roll] compliance failed — regenerating once with the strengthened directive.');
     suppressReroll = true; // the forced swipe must not re-roll
     // Defer so this GENERATION_ENDED handler finishes before a new generation starts.
     setTimeout(() => {
         try {
             Promise.resolve(ctx.generate('swipe')).catch((e) => {
                 suppressReroll = false;
+                complianceRecheck = false;
                 console.error('[Outcome Roll] auto-regenerate failed', e);
             });
         } catch (e) {
             suppressReroll = false;
+            complianceRecheck = false;
             console.error('[Outcome Roll] auto-regenerate failed', e);
         }
     }, 0);
@@ -297,5 +317,6 @@ export function onChatChanged() {
     showToastNext = false;
     suppressReroll = false;
     regenGuardMessageId = null;
+    complianceRecheck = false;
     busy = false;
 }

@@ -102,12 +102,12 @@ const SETTINGS_HTML = `
         <input type="checkbox" id="or_autoRerollOnSwipe"><span>Automatic fresh roll when swiping the reply</span>
       </label>
       <label class="checkbox_label" for="or_complianceCheck">
-        <input type="checkbox" id="or_complianceCheck"><span>Check &amp; log whether the reply reflected the outcome</span>
+        <input type="checkbox" id="or_complianceCheck"><span>Check whether the outcome lands prominently (early in the reply)</span>
       </label>
       <label class="checkbox_label" for="or_autoRegenerateOnMiss">
-        <input type="checkbox" id="or_autoRegenerateOnMiss"><span>Regenerate once on a compliance miss (experimental)</span>
+        <input type="checkbox" id="or_autoRegenerateOnMiss"><span>Regenerate once when the outcome is missing or buried</span>
       </label>
-      <small class="or-hint">Requires the preset to embed the <code>{{frictionroll}}</code> macro in its final-instruction block. Compliance is a heuristic; small models won't hit 100%.</small>
+      <small class="or-hint">Requires the preset to embed the <code>{{frictionroll}}</code> macro in its final-instruction block. Compliance is a heuristic; small models won't hit 100%. Auto-regenerate costs one extra generation on a failed beat.</small>
       <label class="checkbox_label" for="or_showResultAfter">
         <input type="checkbox" id="or_showResultAfter"><span>Show roll result as flavor AFTER the reply</span>
       </label>

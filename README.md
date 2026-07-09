@@ -42,8 +42,11 @@ automatically before the reply is written:
    (World Info, other depth-0 entries) can be inserted between the rules and it.
 6. **Then** the main reply is generated, written around the directive. The
    directive never appears in chat.
-7. After generation, a heuristic checks whether the reply actually reflected the
-   outcome and logs HIT/MISS (optionally regenerating once).
+7. After generation, a heuristic checks whether the outcome landed *prominently*
+   — early in the reply, not buried in a late clause — and logs HIT / WEAK
+   (present but buried) / MISS. On a failure it regenerates once with the same
+   outcome and the strengthened directive; if that still fails, the miss is
+   logged rather than silently accepted.
 8. **Swiping** that reply automatically runs a fresh menu + roll before the
    swipe completes. Moving on to a new message clears the directive so it can't
    leak into a later, unrelated turn.
@@ -79,8 +82,10 @@ only when you want an attempt adjudicated.
 - **Automatic re-roll on swipe** (default on).
 - **Show roll result after the reply** (default off — showing it *before*
   defeats the purpose; *after* is fine as flavor).
-- **Debug view**: the last full menu, raw roll, selected outcome, and raw
-  side-call response, for tuning wording without cluttering chat.
+- **Prominence compliance check** (default on) — verify the outcome lands early
+  in the reply, and **regenerate once** (default on) when it's missing or buried.
+- **Debug view**: the last full menu, raw roll, selected outcome, compliance
+  result, and raw side-call response, for tuning wording without cluttering chat.
 
 ## Failure handling
 

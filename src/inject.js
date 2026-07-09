@@ -16,9 +16,11 @@ let currentDirective = '';
 
 export function buildDirective(selected) {
     return (
-        `The dice determined this outcome is a ${selected.tag}: ${selected.text} ` +
-        `Write the reply consistent with this, whether it follows from the player's action or from the characters and world around them. ` +
-        `Do not mention dice, odds, percentages, or that anything was decided in advance.`
+        `This beat's outcome is decided: ${selected.tag} — ${selected.text} ` +
+        `Build the whole reply around this — it's the event that moves this turn, the center of the scene, ` +
+        `not a detail to drop into a clause and write past. Everything else in the reply reacts to it. ` +
+        `Whatever makes it land — a misread, a change of heart, an interruption — do that, even against what just happened. ` +
+        `Don't soften it, shrink it, or blend it with a different result, and don't mention dice, odds, percentages, or that anything was decided in advance.`
     );
 }
 

@@ -52,8 +52,8 @@ export const defaultSettings = {
     // outcome (distinctive-word overlap) and log HIT/MISS for visibility.
     complianceCheck: true,
 
-    // Experimental: on a compliance MISS, regenerate once keeping the same
-    // outcome. Off by default — it costs an extra generation and won't reach
-    // 100% on small models.
-    autoRegenerateOnMiss: false,
+    // On a compliance failure (outcome absent or buried), regenerate once with
+    // the same outcome + strengthened directive. Costs an extra generation; if
+    // the retry still fails it's logged rather than silently accepted.
+    autoRegenerateOnMiss: true,
 };
