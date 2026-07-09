@@ -1,0 +1,50 @@
+/* Outcome Roll — settings panel styling. Kept minimal and theme-agnostic so it
+   inherits SillyTavern's current theme. */
+
+.outcome-roll-settings .or-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 8px 0;
+}
+
+.outcome-roll-settings .or-inline {
+    display: flex;
+    gap: 8px;
+}
+
+.outcome-roll-settings .or-inline .text_pole {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.outcome-roll-settings .or-hint {
+    display: block;
+    opacity: 0.7;
+    margin: 2px 0 6px;
+    font-size: calc(var(--mainFontSize, 1rem) * 0.85);
+}
+
+.outcome-roll-settings .checkbox_label {
+    margin: 6px 0;
+}
+
+.outcome-roll-settings .or-debug-drawer {
+    margin-top: 10px;
+}
+
+.outcome-roll-settings .or-debug {
+    max-height: 320px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: var(--monoFontFamily, monospace);
+    font-size: calc(var(--mainFontSize, 1rem) * 0.8);
+    padding: 8px;
+    border-radius: 6px;
+    background: var(--black30a, rgba(0, 0, 0, 0.3));
+}
+
+#outcome_roll_wand .fa-dice {
+    margin-right: 4px;
+}
