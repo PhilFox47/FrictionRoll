@@ -92,7 +92,30 @@ async function generateMenu(mode, { actionOverride, chat } = {}) {
     const { selected, ranges } = selectByRoll(normalized, roll);
 
     setDebug({ mode, action, contextText, raw, menu: ranges, roll, selected, missing, partial: missing.length > 0 });
-    return { menu: ranges, roll, selected };
+    // action/contextText/raw are carried on `pending` so a swipe can re-roll the
+    // same menu (and show meaningful debug) without another side-call.
+    return { menu: ranges, roll, selected, raw, action, contextText, missing };
+}
+
+// A swipe re-rolls the dice against the ALREADY-GENERATED menu — no new
+// side-call. Same outcomes and weights, fresh d100, new selection. Synchronous.
+function rerollFromMenu(messageId) {
+    const settings = getSettings();
+    const roll = rollD100();
+    const { selected, ranges } = selectByRoll(pending.menu, roll);
+    pending = { ...pending, menu: ranges, roll, selected, status: 'committed', messageId, compliance: undefined };
+    setDirective(selected);
+    showToastNext = settings.showResultAfter;
+    regenGuardMessageId = null; // a fresh selection gets its own auto-regen budget
+    complianceRecheck = false;
+    console.info(`[Outcome Roll] swipe re-roll ${roll}/100 → ${selected.tag}: ${selected.text} (same menu, no side-call)`);
+    setDebug({
+        mode: 'swipe-reroll',
+        action: pending.action ?? '(reused menu)',
+        contextText: pending.contextText ?? '',
+        raw: pending.raw ?? '(menu reused — no new side-call)',
+        menu: ranges, roll, selected, missing: pending.missing ?? [],
+    });
 }
 
 // --- Manual trigger (button / slash command) -------------------------------
@@ -174,13 +197,20 @@ export async function outcomeRollGenerationInterceptor(chat, _contextSize, _abor
         const settings = getSettings();
         if (!settings.enabled) return chat;
 
-        // Swipe / regenerate: re-roll a turn we actually adjudicated.
+        // Swipe / regenerate: re-roll the dice against the SAME menu — no new
+        // side-call. Keeps the beat's outcome space consistent; only the roll
+        // (and thus the selected outcome) changes.
         if (SWIPE_TYPES.has(type)) {
             // A forced compliance regen keeps the SAME outcome — don't re-roll.
             if (suppressReroll) { suppressReroll = false; return chat; }
             if (!settings.autoRerollOnSwipe) return chat;
             if (!pending || pending.status !== 'committed') return chat;
-            await runInlineRoll('swipe', { committed: true, messageId: pending.messageId, chat });
+            if (Array.isArray(pending.menu) && pending.menu.length >= 2) {
+                rerollFromMenu(pending.messageId);
+            } else {
+                // No usable stored menu — fall back to a fresh menu generation.
+                await runInlineRoll('swipe', { committed: true, messageId: pending.messageId, chat });
+            }
             return chat;
         }
 

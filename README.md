@@ -47,9 +47,10 @@ automatically before the reply is written:
    (present but buried) / MISS. On a failure it regenerates once with the same
    outcome and the strengthened directive; if that still fails, the miss is
    logged rather than silently accepted.
-8. **Swiping** that reply automatically runs a fresh menu + roll before the
-   swipe completes. Moving on to a new message clears the directive so it can't
-   leak into a later, unrelated turn.
+8. **Swiping** that reply automatically re-rolls the dice against the *same*
+   menu before the swipe completes — no new side-call, just a fresh roll and
+   selection, so the beat's outcome space stays consistent. Moving on to a new
+   message clears the directive so it can't leak into a later, unrelated turn.
 
 The roll is wired as a SillyTavern **generate interceptor** (declared in
 `manifest.json`), which SillyTavern awaits *before* building the main prompt —
@@ -62,7 +63,7 @@ a plain send does not emit a usable `'normal'` event type.
 | Action | Behavior |
 | --- | --- |
 | Send a message | **Auto-roll** before the reply (default; toggleable). |
-| Swipe / regenerate the reply | **Automatic** fresh menu + roll (toggleable). |
+| Swipe / regenerate the reply | **Automatic** dice re-roll against the same menu, no new side-call (toggleable). |
 | 🎲 button / `/roll-outcome` | Manual roll — a pre-roll that the next send uses (still available; the primary path when auto-roll is off). |
 | Auto-roll off, no manual roll | Zero effect — no side-calls, no injection. |
 
