@@ -22,7 +22,7 @@ export function buildSystemPrompt() {
         'You are an impartial adjudication engine for a tabletop roleplay session.',
         'You do NOT write prose, dialogue, or roleplay, and you do NOT play any character.',
         'Given the scene so far and the player\'s latest message, you output a short weighted menu of ways the story could plausibly continue in the very next beat.',
-        'Each outcome is a brief INSTRUCTION stating what happens next — NOT finished prose and NOT dialogue. A separate writer turns your instruction into the actual scene, so never stage the wording, quote any speech, or add stylistic or sensory description. Just name the event plainly in one sentence.',
+        'Each outcome is ONE terse action bullet — a stage direction naming what happens next, NOT finished prose and NOT dialogue. A separate writer turns it into the actual scene, so never quote speech or describe tone, expression, gesture, or sensation. Name the event in a few words; the writer supplies everything else.',
         'This is NOT only about whether the player\'s action succeeds. What happens next may follow directly from what the player did, OR it may come from elsewhere:',
         'how another character reacts, something in the environment or the wider situation, an outside party noticing or intervening, a discovery, an interruption, or the plot turning in a particular direction.',
         'ABSOLUTE RULE: outcomes describe ONLY what happens outside the player\'s own control — what other characters do or say, how the environment or situation shifts, what events occur.',
@@ -48,8 +48,10 @@ export function buildUserPrompt(contextText, action, settings, playerName = '', 
         'Rules:',
         `- CRITICAL: each outcome describes ONLY what happens around or to ${who} — what other characters do or say, how the environment or situation changes, what events occur. NEVER describe ${who}'s own actions, words, thoughts, feelings, or reactions. You decide what they react TO, never how they react.`,
         '  Bad (dictates the player): "She laughs, and he laughs along as the tension breaks."  Good (external only): "She dissolves into laughter."',
-        '- Write each outcome as a SHORT INSTRUCTION of what happens, not as prose. One plain sentence (about 8–25 words). No quotation marks or dialogue, no staged wording, no sensory or stylistic description — the writer will handle all of that. State the event; do not perform it.',
-        '  Bad (pre-written prose/dialogue): She smiles and traces your jaw. "First I\'d test your limits," she purrs.  Good (instruction): Joanne takes physical control and names the first small test she intends to put you through.',
+        '- Write each outcome as ONE terse action bullet, like a stage direction — not a sentence of a novel. Template: <actor> <does what> [-> immediate effect]. Actor first, one strong verb, the concrete event, about 6-15 words.',
+        '- HARD BANS in the text: (a) no quotation marks and NO dialogue of any kind — never write what anyone says, only THAT they say/demand/ask/reveal it; (b) no description of tone, facial expression, gesture, or sensation ("smirks", "traces a finger", "leans in close", "thoughtful hum" are all banned); (c) no mood-setting adverbs. Name the event; the writer supplies every word, gesture, and feeling.',
+        '  Bad: Joanne smirks, tracing a finger along your collarbone. "First, you\'ll kneel and prove your devotion..."  Good: Joanne seizes control and orders you to kneel and prove your devotion.',
+        '  Bad: Joanne pauses with a thoughtful hum. "Let\'s start slow. Tell me a fantasy..."  Good: Joanne dials it back and asks you to name a fantasy instead.',
         '- Use ONLY the archetypes listed above, each exactly once. Do not invent other tags or reuse one.',
         '- Make each archetype fit THIS scene. If one genuinely cannot fit what is happening, omit that single line rather than forcing it — but keep as many as you can.',
         '- An outcome can hinge on the player\'s action, or on an external factor (another character\'s reaction, an outside event, a discovery, the plot advancing). It does not have to be about the action working or not.',
@@ -59,13 +61,13 @@ export function buildUserPrompt(contextText, action, settings, playerName = '', 
         `- Do not hard-contradict a direct question or statement ${who} just made. An outcome that cuts that thread off entirely (e.g. an interruption that prevents any answer) should be rare, not a default.`,
         '- A limp, consequence-free outcome in a charged situation is jarring — avoid it. It is fine for an adverse or disruptive outcome to break a calm moment and spike the stakes; that is welcome, not a problem.',
         `- PERCENT is an integer from ${floor} to ${ceiling} reflecting how likely this outcome is. Nothing is 0 (impossible) or 100 (guaranteed). The percentages should roughly sum to 100 across your lines.`,
-        '- Each outcome is exactly one line, pipe-delimited: TAG|PERCENT|short instruction of what happens next.',
+        '- Each outcome is exactly one line, pipe-delimited: TAG|PERCENT|terse action bullet of what happens next.',
         '- Output ONLY the outcome lines. No numbering, no preamble, no markdown, no blank lines, no commentary.',
         '',
-        'Format example (illustrative tags only — use the archetypes listed above, not these). Note each line is a short instruction about other characters and the world, never the player, and contains no dialogue:',
+        'Format example (illustrative tags only — use the archetypes listed above, not these). Note each line is a terse action bullet about other characters and the world, never the player, with no dialogue and no mood description:',
         'WIN|25|The patrol passes the crates and moves on without noticing you.',
-        'LOSS|25|The patrol spots you and moves to surround you; this hiding spot is blown for good.',
-        'CLOCK|20|The smugglers\' truck starts up down the block — they are nearly ready to leave.',
+        'LOSS|25|The patrol spots you and moves to surround you; this hiding spot is blown.',
+        'CLOCK|20|The smugglers finish loading and their truck pulls out.',
     ];
 
     if (stricter) {
@@ -124,6 +126,25 @@ const LINE_RE = new RegExp(
     'i',
 );
 
+// Backstop for when the model ignores the "no dialogue / no prose" rules: strip
+// any quoted dialogue and tidy what's left, so a staged line at least reaches
+// the writer as an instruction rather than pre-written speech. A well-formed
+// instruction (no quotes) passes through untouched.
+export function sanitizeOutcomeText(raw) {
+    let t = String(raw ?? '').trim();
+    // Remove double-quoted spans (straight and curly) — i.e. dialogue. Single
+    // quotes are left alone so contractions ("you'll", "I'm") survive.
+    t = t.replace(/[“”][^“”]*[“”]/g, ' ');
+    t = t.replace(/"[^"]*"/g, ' ');
+    // Tidy whitespace and any punctuation left stranded by the removal.
+    t = t.replace(/\s+/g, ' ')
+        .replace(/\s+([,.;:!?])/g, '$1')
+        .replace(/[\s—–-]+$/g, '')
+        .replace(/[\s,;:]+$/g, '')
+        .trim();
+    return t;
+}
+
 // Strict, line-by-line parse. Malformed lines are discarded, not fatal.
 export function parseMenu(raw) {
     const out = [];
@@ -133,7 +154,7 @@ export function parseMenu(raw) {
         if (!m) continue;
         const tag = m[1].toUpperCase();
         const pct = parseInt(m[2], 10);
-        const text = m[3].trim();
+        const text = sanitizeOutcomeText(m[3]);
         if (!text || !Number.isFinite(pct)) continue;
         out.push({ tag, pct, text });
     }
