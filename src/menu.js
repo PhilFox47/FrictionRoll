@@ -26,7 +26,7 @@ export function buildSystemPrompt() {
         'how another character reacts, something in the environment or the wider situation, an outside party noticing or intervening, a discovery, an interruption, or the plot turning in a particular direction.',
         'ABSOLUTE RULE: outcomes describe ONLY what happens outside the player\'s own control — what other characters do or say, how the environment or situation shifts, what events occur.',
         'You must NEVER state, imply, or dictate the player character\'s own actions, dialogue, thoughts, feelings, or reactions. Those belong to the player alone. You decide only what the player is reacting TO, never how they react.',
-        'Judge plausibility neutrally against the context. Do not favor success, the player, or the most dramatic result.',
+        'Judge each outcome\'s probability honestly from the context. Do not inflate the odds of success, of the player\'s preferred result, or of the tamest option — real attempts can and do go badly.',
         'The outcomes must be genuinely different from one another in how the scene actually develops — different directions and developments, not reworded versions of the same result.',
     ].join(' ');
 }
@@ -51,16 +51,17 @@ export function buildUserPrompt(contextText, action, settings, playerName = '', 
         '- Make each archetype fit THIS scene. If one genuinely cannot fit what is happening, omit that single line rather than forcing it — but keep as many as you can.',
         '- An outcome can hinge on the player\'s action, or on an external factor (another character\'s reaction, an outside event, a discovery, the plot advancing). It does not have to be about the action working or not.',
         '- Note WORLD_* archetypes are judged only from the NPC\'s or world\'s point of view — a loss for them is not automatically a win for the player, and vice versa.',
+        '- ADVERSE OR DISRUPTIVE outcomes (LOSS, WORLD_LOSS, TWIST, REVERSAL, CONSEQUENCE, COMPLICATION) are allowed to be BIG and to carry real, lasting consequences: a plan ruined, a bond broken, an injury or a death, capture, exposure, a hard turn away from the card\'s expected plot. Do NOT take the easy way out with a soft, consequence-free version — when one of these lands, let it genuinely cost something and change the story, even if that breaks the natural flow of the scene.',
         '- Continue THIS scene using what is already in it. Build outcomes from the people, objects, and threads already present. Do not introduce a brand-new character or entity that has never appeared (a passing janitor, a coach, a stranger) unless that genuinely is the single most interesting turn available.',
         `- Do not hard-contradict a direct question or statement ${who} just made. An outcome that cuts that thread off entirely (e.g. an interruption that prevents any answer) should be rare, not a default.`,
-        '- Roughly match the emotional intensity of what just happened. A very mundane outcome against an intense moment — or a huge escalation against a quiet one — is jarring and hard to write convincingly.',
+        '- A limp, consequence-free outcome in a charged situation is jarring — avoid it. It is fine for an adverse or disruptive outcome to break a calm moment and spike the stakes; that is welcome, not a problem.',
         `- PERCENT is an integer from ${floor} to ${ceiling} reflecting how likely this outcome is. Nothing is 0 (impossible) or 100 (guaranteed). The percentages should roughly sum to 100 across your lines.`,
         '- Each outcome is exactly one line, pipe-delimited: TAG|PERCENT|one concise sentence describing what happens next.',
         '- Output ONLY the outcome lines. No numbering, no preamble, no markdown, no blank lines, no commentary.',
         '',
         'Format example (illustrative tags only — use the archetypes listed above, not these). Note each line describes only other characters and the world, never the player:',
         'WIN|25|The patrol strides past the crates and rounds the far corner without a single glance aside.',
-        'LOSS|25|A second guard steps around the corner, his lantern swinging up toward the shadows.',
+        'LOSS|25|A shout goes up and boots pound the pavement — the whole patrol has you, and this hiding spot is blown for good.',
         'CLOCK|20|Down the block an engine coughs to life — the patrol\'s truck is warming up to move out.',
     ];
 

@@ -16,11 +16,11 @@ export const MACRO_NAME = 'frictionroll';
 export const ARCHETYPES = [
     { tag: 'WIN', desc: 'The next beat plays out in your favour.' },
     { tag: 'COST', desc: 'The next beat plays out in your favour, but at a real cost.' },
-    { tag: 'LOSS', desc: 'The next beat does not play out in your favour.' },
+    { tag: 'LOSS', desc: 'The next beat does not play out in your favour — and this can be a big, lasting setback: a plan collapses, something or someone is lost, real and hard-to-undo damage is done. Not a mild, quickly-recovered stumble.' },
     { tag: 'WORLD_WIN', desc: 'The next beat plays out in favour of one NPC or the world — judged only from their perspective, regardless of what it means for you.' },
     { tag: 'WORLD_COST', desc: 'The next beat favours one NPC or the world but at a real cost to them — their perspective only, regardless of you.' },
     { tag: 'WORLD_LOSS', desc: 'The next beat does not play out in favour of one NPC or the world — their perspective only, and NOT automatically a win for you.' },
-    { tag: 'TWIST', desc: 'Something unexpected happens, turning the scene in a new direction.' },
+    { tag: 'TWIST', desc: 'Something unexpected happens, turning the scene in a new direction — up to a major swerve that upends the situation or breaks from the card\'s expected plot, not a small surprise that smooths over in a line.' },
     { tag: 'CONTINUE', desc: 'The scene simply continues in its most logical direction.' },
     { tag: 'ESCALATION', desc: 'Stakes, danger, or intensity rise sharply — whoever it favours.' },
     { tag: 'DE_ESCALATION', desc: 'Tension releases: a threat backs off, things calm, a breath.' },
