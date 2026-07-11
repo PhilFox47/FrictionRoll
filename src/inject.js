@@ -14,13 +14,17 @@ import { MACRO_NAME } from './constants.js';
 // The live value of {{frictionroll}}. Empty when no roll is active.
 let currentDirective = '';
 
+// Plain, front-loaded imperative aimed at small models (e.g. 12B). The writer
+// does NOT need to know this was rolled — dice/odds/"decided" framing is just
+// noise that competes with the instruction. Lead with the command, put the
+// event on its own line, then reinforce that it's the central event.
 export function buildDirective(selected) {
     return (
-        `This beat's outcome is decided: ${selected.tag} — ${selected.text} ` +
-        `Build the whole reply around this — it's the event that moves this turn, the center of the scene, ` +
-        `not a detail to drop into a clause and write past. Everything else in the reply reacts to it. ` +
-        `Whatever makes it land — a misread, a change of heart, an interruption — do that, even against what just happened. ` +
-        `Don't soften it, shrink it, or blend it with a different result, and don't mention dice, odds, percentages, or that anything was decided in advance.`
+        `Continue the story so that this happens next. This is the central event of your reply — it is required, not optional:\n` +
+        `${selected.text}\n` +
+        `Build the whole scene around it: every character and the world itself reacts to this. ` +
+        `Do not skip it, tone it down, or bury it in a passing line — make it clearly and unmistakably happen, ` +
+        `even if the moment looked like it was heading somewhere else.`
     );
 }
 
