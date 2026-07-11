@@ -209,11 +209,10 @@ function renderDebug(last, history) {
     const lines = [];
     lines.push(`[${d.at}] mode: ${d.mode}`);
     if (d.error) lines.push(`ERROR: ${d.error}`);
-    if (d.partial) lines.push(`WARNING: missing tag(s): ${(d.missing || []).join(', ') || '(none survived)'}`);
     lines.push(`action: ${d.action || '(none)'}`);
     if (Array.isArray(d.menu) && d.menu.length) {
         lines.push('menu (normalized):');
-        for (const o of d.menu) lines.push(`  ${String(o.start).padStart(3)}-${String(o.end).padEnd(3)}  ${o.tag.padEnd(7)} ${o.pct}%  ${o.text}`);
+        for (const o of d.menu) lines.push(`  ${String(o.start).padStart(3)}-${String(o.end).padEnd(3)}  ${o.tag.padEnd(13)} ${o.pct}%  ${o.text}`);
     }
     if (d.roll != null) lines.push(`roll: ${d.roll}/100`);
     if (d.selected) lines.push(`SELECTED -> ${d.selected.tag}: ${d.selected.text}`);

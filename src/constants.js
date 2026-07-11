@@ -8,10 +8,32 @@ export const MODULE_NAME = 'outcome-roll';
 // directive.
 export const MACRO_NAME = 'frictionroll';
 
-// The three-way tag vocabulary, intentionally mirroring Friction Lite's
-// fail-forward rule (clean win / works-but-costs / fails-but-gains).
-// If Friction Lite's rule 8 wording changes, update these to match.
-export const TAGS = ['WIN', 'COST', 'SETBACK'];
+// The outcome archetypes the side-call can choose from. These are INTERNAL —
+// the writer never sees the tag (the directive only delivers the outcome text),
+// so this taxonomy purely shapes what kinds of beats get generated. Compact
+// single-token tags keep the strict TAG|PERCENT|text format reliable on small
+// models. Descriptions double as the prompt legend and the debug labels.
+export const ARCHETYPES = [
+    { tag: 'WIN', desc: 'The next beat plays out in your favour.' },
+    { tag: 'COST', desc: 'The next beat plays out in your favour, but at a real cost.' },
+    { tag: 'LOSS', desc: 'The next beat does not play out in your favour.' },
+    { tag: 'WORLD_WIN', desc: 'The next beat plays out in favour of one NPC or the world — judged only from their perspective, regardless of what it means for you.' },
+    { tag: 'WORLD_COST', desc: 'The next beat favours one NPC or the world but at a real cost to them — their perspective only, regardless of you.' },
+    { tag: 'WORLD_LOSS', desc: 'The next beat does not play out in favour of one NPC or the world — their perspective only, and NOT automatically a win for you.' },
+    { tag: 'TWIST', desc: 'Something unexpected happens, turning the scene in a new direction.' },
+    { tag: 'CONTINUE', desc: 'The scene simply continues in its most logical direction.' },
+    { tag: 'ESCALATION', desc: 'Stakes, danger, or intensity rise sharply — whoever it favours.' },
+    { tag: 'DE_ESCALATION', desc: 'Tension releases: a threat backs off, things calm, a breath.' },
+    { tag: 'STALEMATE', desc: 'Nobody gains ground; the situation holds and the decision is deferred.' },
+    { tag: 'REVELATION', desc: 'A secret, a lie, or a hidden fact surfaces.' },
+    { tag: 'CLOCK', desc: 'The world moves on its own schedule — a timer, plan, or off-screen event advances regardless of you.' },
+    { tag: 'CONSEQUENCE', desc: 'A consequence of an earlier action, or a stated rule or threat, lands now.' },
+    { tag: 'REVERSAL', desc: 'The power dynamic flips — whoever was in control loses it.' },
+    { tag: 'INTERRUPTION', desc: 'A new person or event breaks into the scene and redirects it.' },
+    { tag: 'COMPLICATION', desc: 'A fresh obstacle or problem appears that is not cleanly anyone\'s win or loss.' },
+];
+
+export const TAGS = ARCHETYPES.map((a) => a.tag);
 
 export const defaultSettings = {
     enabled: true,

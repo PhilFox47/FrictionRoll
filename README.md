@@ -108,14 +108,24 @@ already bakes this placeholder into that block. With any other preset, add
 sees the outcome. The macro resolves to an empty string whenever no roll is
 active, so it's harmless when idle.
 
+## Outcome archetypes
+
+The side-call chooses from a pool of archetypes (defined in
+`src/constants.js` as `ARCHETYPES`): the player-facing `WIN` / `COST` /
+`LOSS`; their `WORLD_*` counterparts judged only from an NPC's or the world's
+perspective (a world loss is *not* automatically a player win); and structural
+beats — `TWIST`, `CONTINUE`, `ESCALATION`, `DE_ESCALATION`, `STALEMATE`,
+`REVELATION`, `CLOCK`, `CONSEQUENCE`, `REVERSAL`, `INTERRUPTION`,
+`COMPLICATION`. Every rolled menu uses **distinct** archetypes, so you get real
+variety instead of three flavours of "it works". These tags are internal — the
+writer only ever receives the outcome text, never the tag — so you can add,
+remove, or reword archetypes freely without affecting the prose.
+
 ## Compatibility with Friction Lite
 
-The `WIN` / `COST` / `SETBACK` tags intentionally mirror Friction Lite's
-fail-forward rule. The two aren't automatically linked — if that rule's wording
-changes, update the tag vocabulary in `src/constants.js` to match. The
-extension has no dependency on Friction Lite (or any preset) and is inert
-without one (aside from needing the `{{frictionroll}}` placeholder above to
-actually reach the model).
+The extension has no dependency on Friction Lite (or any preset) and is inert
+without one, aside from needing the `{{frictionroll}}` placeholder above to
+actually reach the model.
 
 ## Out of scope (v1)
 

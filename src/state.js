@@ -15,7 +15,7 @@ import { getST, getSettings } from './settings.js';
 import { gatherContext, getPlayerAction } from './context.js';
 import {
     buildSystemPrompt, buildUserPrompt, runSideCall,
-    parseMenu, validateMenu, normalize,
+    parseMenu, dedupeByTag, validateMenu, normalize,
 } from './menu.js';
 import { rollD100, selectByRoll } from './roll.js';
 import { setDirective, clearDirective } from './inject.js';
@@ -63,14 +63,12 @@ async function generateMenu(mode, { actionOverride, chat } = {}) {
 
     let raw = '';
     let outcomes = [];
-    let validation = null;
 
     for (let attempt = 0; attempt < 2; attempt++) {
         const userPrompt = buildUserPrompt(contextText, action, settings, playerName, attempt > 0);
         raw = await runSideCall(systemPrompt, userPrompt);
-        outcomes = parseMenu(raw);
-        validation = validateMenu(outcomes);
-        if (validation.ok) break;
+        outcomes = dedupeByTag(parseMenu(raw)); // distinct archetypes only
+        if (validateMenu(outcomes).ok) break;
         // Retry exactly once with a stricter reminder; never loop indefinitely.
     }
 
@@ -79,20 +77,14 @@ async function generateMenu(mode, { actionOverride, chat } = {}) {
         throw new Error('parse_failed');
     }
 
-    // Proceed even if a tag (e.g. SETBACK) never survived — flag it, don't loop.
-    const missing = validation?.missing ?? [];
-    if (missing.length) {
-        console.warn(`[Outcome Roll] proceeding without tags: ${missing.join(', ')} (prompt wording may need revisiting)`);
-    }
-
     const normalized = normalize(outcomes, settings.floor, settings.ceiling);
     const roll = rollD100();
     const { selected, ranges } = selectByRoll(normalized, roll);
 
-    setDebug({ mode, action, contextText, raw, menu: ranges, roll, selected, missing, partial: missing.length > 0 });
+    setDebug({ mode, action, contextText, raw, menu: ranges, roll, selected });
     // action/contextText/raw are carried on `pending` so a swipe can re-roll the
     // same menu (and show meaningful debug) without another side-call.
-    return { menu: ranges, roll, selected, raw, action, contextText, missing };
+    return { menu: ranges, roll, selected, raw, action, contextText };
 }
 
 // A swipe re-rolls the dice against the ALREADY-GENERATED menu — no new
@@ -111,7 +103,7 @@ function rerollFromMenu(messageId) {
         action: pending.action ?? '(reused menu)',
         contextText: pending.contextText ?? '',
         raw: pending.raw ?? '(menu reused — no new side-call)',
-        menu: ranges, roll, selected, missing: pending.missing ?? [],
+        menu: ranges, roll, selected,
     });
 }
 
