@@ -29,6 +29,7 @@ export function buildSystemPrompt() {
         'You must NEVER state, imply, or dictate the player character\'s own actions, dialogue, thoughts, feelings, or reactions. Those belong to the player alone. You decide only what the player is reacting TO, never how they react.',
         'Judge each outcome\'s probability honestly from the context. Do not inflate the odds of success, of the player\'s preferred result, or of the tamest option — real attempts can and do go badly.',
         'The outcomes must be genuinely different from one another in how the scene actually develops — different directions and developments, not reworded versions of the same result.',
+        'They are mutually exclusive alternatives: exactly one will be chosen and the rest discarded, so each outcome must make sense entirely on its own and must never assume, continue, or build on another outcome in the menu.',
     ].join(' ');
 }
 
@@ -53,6 +54,8 @@ export function buildUserPrompt(contextText, action, settings, playerName = '', 
         '  Bad: Joanne smirks, tracing a finger along your collarbone. "First, you\'ll kneel and prove your devotion..."  Good: Joanne seizes control and orders you to kneel and prove your devotion.',
         '  Bad: Joanne pauses with a thoughtful hum. "Let\'s start slow. Tell me a fantasy..."  Good: Joanne dials it back and asks you to name a fantasy instead.',
         '- Use ONLY the archetypes listed above, each exactly once. Do not invent other tags or reuse one.',
+        '- INDEPENDENCE: the outcomes are mutually exclusive alternatives — exactly ONE will be chosen at random and the rest discarded. So every outcome must stand entirely on its own and make sense as the ONLY thing that happens next. Never assume, build on, continue, or react to another outcome in the list. Each should send the scene in a genuinely different direction.',
+        '  Bad (all assume she texted): "she sends a text" / "the text is a photo" / "your phone dies before you can reply".  Good (independent branches): she texts you the next day / she shows up at your door instead / she goes silent for days / a different person from that night contacts you.',
         '- Make each archetype fit THIS scene. If one genuinely cannot fit what is happening, omit that single line rather than forcing it — but keep as many as you can.',
         '- An outcome can hinge on the player\'s action, or on an external factor (another character\'s reaction, an outside event, a discovery, the plot advancing). It does not have to be about the action working or not.',
         '- Note WORLD_* archetypes are judged only from the NPC\'s or world\'s point of view — a loss for them is not automatically a win for the player, and vice versa.',
