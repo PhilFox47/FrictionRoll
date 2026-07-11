@@ -209,6 +209,9 @@ function renderDebug(last, history) {
     const lines = [];
     lines.push(`[${d.at}] mode: ${d.mode}`);
     if (d.error) lines.push(`ERROR: ${d.error}`);
+    if (Array.isArray(d.candidateTags) && d.candidateTags.length) {
+        lines.push(`archetypes drawn: ${d.candidateTags.join(', ')}`);
+    }
     lines.push(`action: ${d.action || '(none)'}`);
     if (Array.isArray(d.menu) && d.menu.length) {
         lines.push('menu (normalized):');

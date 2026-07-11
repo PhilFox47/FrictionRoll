@@ -4,9 +4,15 @@
 import { getST, getSettings } from './settings.js';
 import { TAGS, ARCHETYPES } from './constants.js';
 
-// A legend of the archetypes the model may pick from, one per line.
-function archetypeLegend() {
-    return ARCHETYPES.map((a) => `  ${a.tag} — ${a.desc}`).join('\n');
+const DESC_BY_TAG = new Map(ARCHETYPES.map((a) => [a.tag, a.desc]));
+
+// A legend for a specific set of archetype tags (the ones drawn this turn),
+// preserving the given order, one per line.
+function archetypeLegendFor(tags) {
+    return tags
+        .filter((t) => DESC_BY_TAG.has(t))
+        .map((t) => `  ${t} — ${DESC_BY_TAG.get(t)}`)
+        .join('\n');
 }
 
 // A detached, analytical framing — deliberately NOT the roleplay persona, so
@@ -25,9 +31,10 @@ export function buildSystemPrompt() {
     ].join(' ');
 }
 
-export function buildUserPrompt(contextText, action, settings, playerName = '', stricter = false) {
-    const { minOutcomes, maxOutcomes, floor, ceiling } = settings;
+export function buildUserPrompt(contextText, action, settings, playerName = '', candidateTags = [], stricter = false) {
+    const { floor, ceiling } = settings;
     const who = playerName ? `the player character (${playerName})` : 'the player character';
+    const tags = (candidateTags && candidateTags.length) ? candidateTags : TAGS;
     const lines = [
         'SCENE (recent context):',
         contextText || '(no prior context)',
@@ -35,38 +42,33 @@ export function buildUserPrompt(contextText, action, settings, playerName = '', 
         "PLAYER'S LATEST MESSAGE (the beat to continue from):",
         action || '(the player has just acted or spoken; the situation is uncertain)',
         '',
-        `Produce between ${minOutcomes} and ${maxOutcomes} distinct ways the scene could continue in the next beat.`,
+        'Write ONE possible outcome for EACH of these archetypes — exactly one line per archetype, using the token on the left verbatim as the TAG:',
+        archetypeLegendFor(tags),
         'Rules:',
         `- CRITICAL: each outcome describes ONLY what happens around or to ${who} — what other characters do or say, how the environment or situation changes, what events occur. NEVER describe ${who}'s own actions, words, thoughts, feelings, or reactions. You decide what they react TO, never how they react.`,
         '  Bad (dictates the player): "She laughs, and he laughs along as the tension breaks."  Good (external only): "She dissolves into laughter, the tension in the room breaking."',
+        '- Use ONLY the archetypes listed above, each exactly once. Do not invent other tags or reuse one.',
+        '- Make each archetype fit THIS scene. If one genuinely cannot fit what is happening, omit that single line rather than forcing it — but keep as many as you can.',
         '- An outcome can hinge on the player\'s action, or on an external factor (another character\'s reaction, an outside event, a discovery, the plot advancing). It does not have to be about the action working or not.',
-        '- TAG is exactly one of these archetypes (use the token on the left, verbatim):',
-        archetypeLegend(),
-        '- Every outcome must use a DIFFERENT archetype — never repeat a tag. With a menu this varied, do not lean on WIN/LOSS alone; reach into the others (a revelation, the world\'s clock advancing, a reversal, a stalemate) when they fit.',
-        '- Aim for a genuine spread of fortunes: they should NOT all be favourable to the player. Include real chances that things go against them or sideways.',
         '- Note WORLD_* archetypes are judged only from the NPC\'s or world\'s point of view — a loss for them is not automatically a win for the player, and vice versa.',
-        '- The outcomes must be substantively different from each other — do not list minor variations or rephrasings of the same development.',
-        '- Continue THIS scene using what is already in it. Build outcomes from the people, objects, and threads already present. Do not introduce a brand-new character or entity that has never appeared (a passing janitor, a coach, a stranger) unless that genuinely is the single most interesting turn available — default to consequences that flow from who and what is already here.',
-        `- Do not hard-contradict a direct question or statement ${who} just made. If their latest message asks the other character something pointed, an outcome that cuts that thread off entirely (e.g. an interruption that prevents any answer) should be rare, not a default option.`,
+        '- Continue THIS scene using what is already in it. Build outcomes from the people, objects, and threads already present. Do not introduce a brand-new character or entity that has never appeared (a passing janitor, a coach, a stranger) unless that genuinely is the single most interesting turn available.',
+        `- Do not hard-contradict a direct question or statement ${who} just made. An outcome that cuts that thread off entirely (e.g. an interruption that prevents any answer) should be rare, not a default.`,
         '- Roughly match the emotional intensity of what just happened. A very mundane outcome against an intense moment — or a huge escalation against a quiet one — is jarring and hard to write convincingly.',
-        `- PERCENT is an integer from ${floor} to ${ceiling}. Nothing is 0 (impossible) or 100 (guaranteed).`,
-        '- Percentages should reflect genuine uncertainty and roughly sum to 100.',
+        `- PERCENT is an integer from ${floor} to ${ceiling} reflecting how likely this outcome is. Nothing is 0 (impossible) or 100 (guaranteed). The percentages should roughly sum to 100 across your lines.`,
         '- Each outcome is exactly one line, pipe-delimited: TAG|PERCENT|one concise sentence describing what happens next.',
         '- Output ONLY the outcome lines. No numbering, no preamble, no markdown, no blank lines, no commentary.',
         '',
-        'Example of the exact format (player is hiding from a patrol) — note the different archetypes, and that every outcome describes only other characters and the world, never the player:',
+        'Format example (illustrative tags only — use the archetypes listed above, not these). Note each line describes only other characters and the world, never the player:',
         'WIN|25|The patrol strides past the crates and rounds the far corner without a single glance aside.',
         'LOSS|25|A second guard steps around the corner, his lantern swinging up toward the shadows.',
         'CLOCK|20|Down the block an engine coughs to life — the patrol\'s truck is warming up to move out.',
-        'REVELATION|15|Two guards fall to arguing, and a name you were not meant to hear slips out.',
-        'TWIST|15|A stray cat bolts across the alley and the whole patrol freezes, weapons half-raised.',
     ];
 
     if (stricter) {
         lines.push(
             '',
             'IMPORTANT: your previous response was malformed. Output ONLY lines of the form TAG|PERCENT|text, one per line, ' +
-            'each using a DIFFERENT archetype tag from the list above (verbatim). Output nothing else.',
+            'one line per archetype listed above, using those tags verbatim. Output nothing else.',
         );
     }
 

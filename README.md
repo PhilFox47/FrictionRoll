@@ -116,10 +116,20 @@ The side-call chooses from a pool of archetypes (defined in
 perspective (a world loss is *not* automatically a player win); and structural
 beats — `TWIST`, `CONTINUE`, `ESCALATION`, `DE_ESCALATION`, `STALEMATE`,
 `REVELATION`, `CLOCK`, `CONSEQUENCE`, `REVERSAL`, `INTERRUPTION`,
-`COMPLICATION`. Every rolled menu uses **distinct** archetypes, so you get real
-variety instead of three flavours of "it works". These tags are internal — the
-writer only ever receives the outcome text, never the tag — so you can add,
-remove, or reword archetypes freely without affecting the prose.
+`COMPLICATION`.
+
+Which archetypes appear each turn is chosen by a **shuffle-bag**, not the
+model: the extension draws distinct archetypes from a bag that cycles through
+the whole pool before repeating, so every archetype surfaces regularly (all 17
+within ~4 turns at 5 outcomes each) instead of the model leaning on a few
+favourites. The model then just writes a scene-appropriate outcome for each
+drawn archetype, and may drop one that genuinely can't fit. The bag resets per
+chat, and the debug view shows each turn's draw. A local d100 then picks the
+winner, weighted by the model's percentages.
+
+These tags are internal — the writer only ever receives the outcome text, never
+the tag — so you can add, remove, or reword archetypes freely without affecting
+the prose.
 
 ## Compatibility with Friction Lite
 

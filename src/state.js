@@ -18,6 +18,7 @@ import {
     parseMenu, dedupeByTag, validateMenu, normalize,
 } from './menu.js';
 import { rollD100, selectByRoll } from './roll.js';
+import { drawArchetypes, resetBag } from './bag.js';
 import { setDirective, clearDirective } from './inject.js';
 import { setDebug, annotateDebug } from './debug.js';
 import { buildEvalSystemPrompt, buildEvalUserPrompt, parseEvalVerdict } from './evaluate.js';
@@ -61,19 +62,28 @@ async function generateMenu(mode, { actionOverride, chat } = {}) {
         if (n && !String(n).includes('{{')) playerName = String(n).trim();
     } catch { /* ignore */ }
 
+    // Draw this turn's archetypes from the shuffle-bag (rotation/balance). The
+    // model writes an outcome for each; we only accept these tags.
+    const candidateTags = drawArchetypes(settings.maxOutcomes);
+    const candidateSet = new Set(candidateTags);
+
     let raw = '';
     let outcomes = [];
 
     for (let attempt = 0; attempt < 2; attempt++) {
-        const userPrompt = buildUserPrompt(contextText, action, settings, playerName, attempt > 0);
+        const userPrompt = buildUserPrompt(contextText, action, settings, playerName, candidateTags, attempt > 0);
         raw = await runSideCall(systemPrompt, userPrompt);
-        outcomes = dedupeByTag(parseMenu(raw)); // distinct archetypes only
+        const deduped = dedupeByTag(parseMenu(raw));
+        // Enforce the bag: keep only drawn archetypes. If the model went fully
+        // off-list, fall back to the deduped set so we still get a roll.
+        const onList = deduped.filter((o) => candidateSet.has(o.tag));
+        outcomes = onList.length >= 2 ? onList : deduped;
         if (validateMenu(outcomes).ok) break;
         // Retry exactly once with a stricter reminder; never loop indefinitely.
     }
 
     if (!outcomes || outcomes.length < 2) {
-        setDebug({ mode, action, contextText, raw, error: 'parse_failed', menu: [] });
+        setDebug({ mode, action, contextText, raw, candidateTags, error: 'parse_failed', menu: [] });
         throw new Error('parse_failed');
     }
 
@@ -81,10 +91,10 @@ async function generateMenu(mode, { actionOverride, chat } = {}) {
     const roll = rollD100();
     const { selected, ranges } = selectByRoll(normalized, roll);
 
-    setDebug({ mode, action, contextText, raw, menu: ranges, roll, selected });
+    setDebug({ mode, action, contextText, raw, candidateTags, menu: ranges, roll, selected });
     // action/contextText/raw are carried on `pending` so a swipe can re-roll the
     // same menu (and show meaningful debug) without another side-call.
-    return { menu: ranges, roll, selected, raw, action, contextText };
+    return { menu: ranges, roll, selected, raw, action, contextText, candidateTags };
 }
 
 // A swipe re-rolls the dice against the ALREADY-GENERATED menu — no new
@@ -103,6 +113,7 @@ function rerollFromMenu(messageId) {
         action: pending.action ?? '(reused menu)',
         contextText: pending.contextText ?? '',
         raw: pending.raw ?? '(menu reused — no new side-call)',
+        candidateTags: pending.candidateTags ?? [],
         menu: ranges, roll, selected,
     });
 }
@@ -288,6 +299,7 @@ async function evaluateReply() {
 // --- Chat switch / reset: wipe everything so nothing leaks across chats -----
 export function onChatChanged() {
     clearDirective();
+    resetBag(); // each story rotates its archetypes independently
     pending = null;
     consumeOnReceive = false;
     showToastNext = false;
