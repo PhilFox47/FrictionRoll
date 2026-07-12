@@ -47,6 +47,19 @@ function showResultToast(p) {
     notify('info', `🎲 ${p.roll}/100 → ${p.selected.tag}: ${p.selected.text}`, { timeOut: 9000, extendedTimeOut: 3000 });
 }
 
+// Our chain runs at GENERATION_STARTED, which pauses Generate() BEFORE ST flips
+// the Send button to Stop — so during our side-calls the UI would still show
+// "Send". Flip it to Stop ourselves for immediate feedback; ST does the same
+// deactivate/activate itself once it resumes, so this just bridges the gap.
+function showGeneratingUI() {
+    try {
+        const $ = globalThis.jQuery;
+        if (!$) return;
+        $('#send_but').addClass('displayNone');   // hide Send (ST's own class)
+        $('#mes_stop').css('display', 'flex');     // show Stop (matches showStopButton)
+    } catch { /* UI not present */ }
+}
+
 // The outcome pipeline: gather -> menu side-call (+one strict retry) ->
 // parse/dedupe/validate -> normalize -> roll -> select. Throws on unrecoverable
 // failure so callers can fail open.
@@ -174,6 +187,7 @@ export async function onGenerationStarted(type, options, dryRun) {
     if (SWIPE_TYPES.has(type)) {
         if (!settings.autoRerollOnSwipe) return;
         if (!pending || pending.status !== 'committed') return;
+        showGeneratingUI();
         const ok = await produceOutcome('swipe', { committed: true, messageId: pending.messageId });
         if (ok) { showToastNext = settings.showResultAfter; judgeThisReply = true; }
         return;
@@ -199,6 +213,7 @@ export async function onGenerationStarted(type, options, dryRun) {
 
     if (!settings.autoRollOnSend) return; // manual-only mode
 
+    showGeneratingUI();
     const ok = await produceOutcome('send', { committed: false, messageId: null });
     if (ok) { consumeOnReceive = true; judgeThisReply = true; }
 }
