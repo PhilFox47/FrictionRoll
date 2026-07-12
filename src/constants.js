@@ -2,10 +2,10 @@
 
 export const MODULE_NAME = 'outcome-roll';
 
-// The outcome archetypes the side-call can choose from. These are INTERNAL —
-// the writer never sees the tag (the directive only delivers the outcome text),
-// so this taxonomy purely shapes what kinds of beats get generated. Compact
-// single-token tags keep the strict TAG|PERCENT|text format reliable on small
+// The outcome archetypes the side-call can choose from. These tags are INTERNAL
+// (they never reach the main model — only the winning outcome's prose does), so
+// the taxonomy purely shapes what kinds of beats get generated. Compact
+// single-token tags keep the strict TAG|PERCENT|prose format reliable on small
 // models. Descriptions double as the prompt legend and the debug labels.
 export const ARCHETYPES = [
     { tag: 'WIN', desc: 'The next beat plays out in your favour.' },
@@ -29,6 +29,11 @@ export const ARCHETYPES = [
 
 export const TAGS = ARCHETYPES.map((a) => a.tag);
 
+// Token budgets / sampler settings for the two side-calls.
+export const MENU_MAX_TOKENS = 600;   // one prose paragraph per outcome
+export const EVAL_MAX_TOKENS = 8;     // just "Yes" / "No"
+export const EVAL_TEMPERATURE = 0.2;  // deterministic verdict
+
 export const defaultSettings = {
     enabled: true,
 
@@ -46,13 +51,9 @@ export const defaultSettings = {
     // Any other value is a Connection Manager profile id used for the side-call.
     connectionProfileId: '',
 
-    // Sampler override for the outcome-menu side-call (structured, low temp).
-    temperature: 0.5,
-
-    // The prefill side-call is creative writing, so it uses a higher temp near
-    // the main roleplay generation, and a small token budget (1-2 sentences).
-    prefillTemperature: 0.9,
-    prefillMaxTokens: 120,
+    // The outcome side-call now writes prose openings, so it uses a creative
+    // temperature near the main roleplay generation.
+    generationTemperature: 0.9,
 
     // Optional: pop a small editor to specify/edit the action before rolling.
     promptForAction: false,

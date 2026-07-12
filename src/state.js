@@ -2,18 +2,22 @@
 //
 //   pending = {
 //     menu, roll, selected,          // the current adjudicated outcome
-//     prefill,                       // the generated opening prose for it
+//     prefill,                       // the winning outcome's prose (the opening)
 //     status: 'primed' | 'committed' // primed = rolled, not yet generated;
 //                                     // committed = a reply was produced with it
 //     messageId,                     // chat index of that reply (committed only)
 //   }
 //
-// The outcome reaches the reply as a PREFILL written into power_user's
-// "Start Reply With" slot. That value is read EARLY in Generate (getBiasStrings),
-// so it must be set before generation — which is why the trigger is the early,
-// awaited GENERATION_STARTED event, not the late generate-interceptor.
+// The winning outcome's prose is written into power_user's "Start Reply With"
+// slot as the reply's opening. That value is read EARLY in Generate
+// (getBiasStrings), so it must be set before generation — hence the trigger is
+// the early, awaited GENERATION_STARTED event. Because that fires BEFORE the
+// user message is committed to chat, the send action is read from the composer
+// textarea (see context.getPlayerAction), and feedback is a toast rather than a
+// button swap (swapping the Send button broke its restore on abort).
 
 import { getST, getSettings } from './settings.js';
+import { MENU_MAX_TOKENS, EVAL_MAX_TOKENS, EVAL_TEMPERATURE } from './constants.js';
 import { gatherContext, getPlayerAction } from './context.js';
 import {
     buildSystemPrompt, buildUserPrompt, runSideCall,
@@ -21,7 +25,7 @@ import {
 } from './menu.js';
 import { rollD100, selectByRoll } from './roll.js';
 import { drawArchetypes, resetBag } from './bag.js';
-import { generatePrefill, setPrefill, clearPrefill } from './prefill.js';
+import { sanitizePrefill, setPrefill, clearPrefill } from './prefill.js';
 import { setDebug, annotateDebug } from './debug.js';
 import { buildEvalSystemPrompt, buildEvalUserPrompt, parseEvalVerdict } from './evaluate.js';
 
@@ -47,22 +51,16 @@ function showResultToast(p) {
     notify('info', `🎲 ${p.roll}/100 → ${p.selected.tag}: ${p.selected.text}`, { timeOut: 9000, extendedTimeOut: 3000 });
 }
 
-// Our chain runs at GENERATION_STARTED, which pauses Generate() BEFORE ST flips
-// the Send button to Stop — so during our side-calls the UI would still show
-// "Send". Flip it to Stop ourselves for immediate feedback; ST does the same
-// deactivate/activate itself once it resumes, so this just bridges the gap.
-function showGeneratingUI() {
-    try {
-        const $ = globalThis.jQuery;
-        if (!$) return;
-        $('#send_but').addClass('displayNone');   // hide Send (ST's own class)
-        $('#mes_stop').css('display', 'flex');     // show Stop (matches showStopButton)
-    } catch { /* UI not present */ }
+// The pipeline runs at GENERATION_STARTED, before ST flips Send->Stop, so a
+// non-blocking toast is the safe way to signal "rolling" (touching the buttons
+// broke their restore on abort). Auto-dismisses when the reply starts.
+function showRollingToast() {
+    notify('info', '🎲 Rolling for the next outcome…', { timeOut: 4000 });
 }
 
-// The outcome pipeline: gather -> menu side-call (+one strict retry) ->
-// parse/dedupe/validate -> normalize -> roll -> select. Throws on unrecoverable
-// failure so callers can fail open.
+// One side-call: for each drawn archetype the model writes the opening prose of
+// the reply where that outcome happens. Then parse/dedupe/validate ->
+// normalize -> roll -> select. Throws on unrecoverable failure (fail open).
 async function generateMenu(mode, { actionOverride } = {}) {
     const settings = getSettings();
     const contextText = await gatherContext(mode);
@@ -85,7 +83,7 @@ async function generateMenu(mode, { actionOverride } = {}) {
 
     for (let attempt = 0; attempt < 2; attempt++) {
         const userPrompt = buildUserPrompt(contextText, action, settings, playerName, candidateTags, attempt > 0);
-        raw = await runSideCall(systemPrompt, userPrompt);
+        raw = await runSideCall(systemPrompt, userPrompt, MENU_MAX_TOKENS, settings.generationTemperature);
         const deduped = dedupeByTag(parseMenu(raw));
         const onList = deduped.filter((o) => candidateSet.has(o.tag));
         outcomes = onList.length >= 2 ? onList : deduped;
@@ -102,33 +100,24 @@ async function generateMenu(mode, { actionOverride } = {}) {
     const { selected, ranges } = selectByRoll(normalized, roll);
 
     setDebug({ mode, action, contextText, raw, candidateTags, menu: ranges, roll, selected });
-    return { menu: ranges, roll, selected, raw, action, contextText, candidateTags };
+    return { menu: ranges, roll, selected };
 }
 
-// The full chain: roll an outcome, generate its opening prose, and write that
-// into the "Start Reply With" slot. `busy` guards re-entrancy from our own
-// side-call generations. Fails open: on error, the prefill slot is left empty
-// and the reply generates normally.
+// Roll an outcome and write its prose straight into the "Start Reply With" slot
+// (the winning line IS the opening — no separate conversion). `busy` guards
+// re-entrancy from our own side-call. Fails open: on error the slot is left
+// empty and the reply generates normally.
 async function produceOutcome(mode, { actionOverride, committed = false, messageId = null } = {}) {
     busy = true;
     try {
         const result = await generateMenu(mode, { actionOverride });
-
-        // Turn the selected outcome into the opening of the reply (creative call).
-        let prefill = '';
-        try {
-            prefill = await generatePrefill(result.contextText, result.selected.text);
-        } catch (e) {
-            console.warn('[Outcome Roll] prefill generation failed — reply will generate without a prefill.', e);
-            prefill = '';
-        }
+        const prefill = sanitizePrefill(result.selected.text);
 
         pending = { ...result, prefill, status: committed ? 'committed' : 'primed', messageId };
         if (prefill) setPrefill(prefill); else clearPrefill();
 
         annotateDebug({ prefill: prefill || '(none)' });
-        console.info(`[Outcome Roll] ${mode} roll ${result.roll}/100 → ${result.selected.tag}: ${result.selected.text}`);
-        console.info(`[Outcome Roll] prefill: ${prefill || '(empty)'}`);
+        console.info(`[Outcome Roll] ${mode} roll ${result.roll}/100 → ${result.selected.tag}: ${prefill}`);
         return true;
     } catch (e) {
         console.error(`[Outcome Roll] ${mode} roll failed`, e);
@@ -187,7 +176,7 @@ export async function onGenerationStarted(type, options, dryRun) {
     if (SWIPE_TYPES.has(type)) {
         if (!settings.autoRerollOnSwipe) return;
         if (!pending || pending.status !== 'committed') return;
-        showGeneratingUI();
+        showRollingToast();
         const ok = await produceOutcome('swipe', { committed: true, messageId: pending.messageId });
         if (ok) { showToastNext = settings.showResultAfter; judgeThisReply = true; }
         return;
@@ -213,7 +202,7 @@ export async function onGenerationStarted(type, options, dryRun) {
 
     if (!settings.autoRollOnSend) return; // manual-only mode
 
-    showGeneratingUI();
+    showRollingToast();
     const ok = await produceOutcome('send', { committed: false, messageId: null });
     if (ok) { consumeOnReceive = true; judgeThisReply = true; }
 }
@@ -260,7 +249,7 @@ async function evaluateReply() {
     let verdict = 'unknown';
     busy = true; // guard our own judge side-call from re-triggering the pipeline
     try {
-        const raw = await runSideCall(buildEvalSystemPrompt(), buildEvalUserPrompt(outcome, reply), 8);
+        const raw = await runSideCall(buildEvalSystemPrompt(), buildEvalUserPrompt(outcome, reply), EVAL_MAX_TOKENS, EVAL_TEMPERATURE);
         verdict = parseEvalVerdict(raw);
     } catch (e) {
         console.warn('[Outcome Roll] outcome evaluation failed.', e);

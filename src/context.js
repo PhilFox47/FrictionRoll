@@ -30,17 +30,15 @@ function lastUserMessage(chat) {
 }
 
 // The action being adjudicated.
-//  - manual mode: prefer the unsent draft in the composer (that IS the most
-//    recent thing the player is about to do); fall back to the last chat
+//  - manual / send mode: prefer the composer draft. On a send, the roll runs at
+//    GENERATION_STARTED, BEFORE the message is committed to chat, so the draft
+//    textarea is where the action still lives; fall back to the last chat
 //    message from the player.
-//  - send/swipe mode: the last player message in the prompt-building chat.
-// `chatOverride` is the array the interceptor hands us (the exact chat the
-// upcoming generation will build from); falls back to the live chat.
-export function getPlayerAction(mode, chatOverride) {
-    const ctx = getST();
-    const chat = chatOverride ?? ctx?.chat ?? [];
+//  - swipe mode: the last player message already in chat (composer is empty).
+export function getPlayerAction(mode) {
+    const chat = getST()?.chat ?? [];
 
-    if (mode === 'manual' && globalThis.jQuery) {
+    if ((mode === 'manual' || mode === 'send') && globalThis.jQuery) {
         const draft = String(globalThis.jQuery('#send_textarea').val() ?? '').trim();
         if (draft) return stripText(draft);
     }
@@ -50,11 +48,11 @@ export function getPlayerAction(mode, chatOverride) {
 }
 
 // Build the trimmed, speaker-labeled context block.
-export async function gatherContext(mode, chatOverride) {
+export async function gatherContext(mode) {
     const ctx = getST();
     const settings = getSettings();
 
-    let chat = (chatOverride ?? ctx?.chat ?? []).filter((m) => !m.is_system);
+    let chat = (ctx?.chat ?? []).filter((m) => !m.is_system);
 
     // When regenerating a reply, drop the trailing assistant message being
     // swiped so we adjudicate the action, not the attempt we're replacing.

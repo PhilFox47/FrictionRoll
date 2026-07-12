@@ -23,39 +23,37 @@ By default (Auto-roll on send), every message you send is adjudicated
 automatically before the reply is written:
 
 1. You send a message — nothing extra to click.
-2. Before the main reply is generated, a detached side-call looks at your
-   message plus recent context and produces a small weighted menu of
-   *substantively different* ways the next beat could go (`TAG|PERCENT|text`,
-   one per line) — the player's action succeeding or failing, but also external
-   developments like a character's reaction, an outside event, a discovery, or
-   the plot turning. Outcomes only ever describe the world's response — what
-   other characters and the environment do — never the player's own actions,
-   words, or reactions. Those are always the player's to decide.
-3. The response is parsed strictly, validated for type diversity, and the
-   percentages are normalized to sum to 100.
+2. Before the main reply is generated, a single detached side-call looks at your
+   message plus recent context and, for each of the turn's drawn archetypes,
+   writes the **opening prose of the reply** where that outcome happens
+   (`TAG|PERCENT|prose`, one per line) — the player's action succeeding or
+   failing, but also external developments like a character's reaction, an
+   outside event, a discovery, or the plot turning. The prose only ever
+   describes the world's response — what other characters and the environment
+   do — never the player's own actions, words, or reactions.
+3. The response is parsed, deduped to distinct archetypes, and the percentages
+   are normalized to sum to 100.
 4. A real random 1–100 is rolled **locally** (never by the model) and mapped
-   against the menu's cumulative ranges — higher-probability outcomes are more
-   likely to be selected.
-5. A **second, creative side-call** turns the selected outcome into the opening
-   1–2 sentences of the reply, in the story's own second-person voice.
-6. That opening is written into SillyTavern's **"Start Reply With"** slot
-   (`power_user.user_prompt_bias`), so it becomes the literal, visible beginning
-   of the reply — the outcome is already on the page when generation starts,
-   not an instruction the model can quietly ignore. The main reply continues
-   from it. The slot is cleared afterwards (restoring any value you had set).
-7. After the reply, an optional **outcome evaluation** asks the model a plain
+   against the cumulative ranges — higher-probability outcomes are more likely.
+5. The winning outcome's prose — already written — is placed directly into
+   SillyTavern's **"Start Reply With"** slot (`power_user.user_prompt_bias`). No
+   conversion step: the outcome text *is* the opening. It becomes the literal,
+   visible beginning of the reply, and the model continues from it. The slot is
+   cleared afterwards (restoring any value you had set).
+6. After the reply, an optional **outcome evaluation** asks the model a plain
    Yes/No: did the reply actually deliver the selected outcome? The verdict is
    logged to the console and the debug view for visibility.
-8. **Swiping** that reply automatically regenerates the whole chain — fresh
-   menu, fresh roll, fresh prefill — before the swipe completes. Moving on to a
-   new message clears the slot so nothing leaks into a later, unrelated turn.
+7. **Swiping** that reply automatically regenerates the whole chain — fresh
+   outcomes, fresh roll, fresh opening — before the swipe completes. Moving on
+   to a new message clears the slot so nothing leaks into a later turn.
 
 The chain is wired to the **`GENERATION_STARTED`** event, which SillyTavern
 emits early in generation (before the "Start Reply With" value is read) and
-awaits — so the roll and prefill are in place before the main reply builds. A
+awaits — so the roll and opening are in place before the main reply builds. A
 plain send often has an `undefined` generation type, so anything that isn't a
 known special type (swipe / regenerate / quiet / impersonate / continue) is
-treated as a send.
+treated as a send. Because that fires before the sent message is committed to
+chat, the action is read from the composer; feedback is a "rolling…" toast.
 
 ## Trigger model
 
@@ -77,23 +75,22 @@ only when you want an attempt adjudicated.
 - **Context** message count and token budget for the side-call.
 - **Connection**: reuse the active chat connection, or pick a Connection
   Manager profile just for the side-calls.
-- **Outcome-menu temperature** — keep it low; this is structured output.
-- **Prefill temperature** — creative writing; keep it near your main roleplay
-  temperature.
+- **Outcome prose temperature** — the outcomes are written as prose, so keep
+  this near your main roleplay temperature.
 - **Prompt to edit the action** before rolling (optional).
 - **Automatic re-roll on swipe** (default on).
 - **Evaluate outcome** (default on) — a Yes/No side-call after each reply that
   logs whether the outcome was actually delivered (visibility only).
 - **Show roll result after the reply** (default off).
-- **Debug view**: the last full menu, raw roll, selected outcome, generated
-  prefill, and raw side-call response.
+- **Debug view**: the last full menu, raw roll, selected outcome, the prefill,
+  and the raw side-call response.
 
 ## Failure handling
 
-Fail open, never fail closed. If the outcome or prefill side-call errors or
-returns nothing, the extension leaves the "Start Reply With" slot empty and lets
-the reply generate normally rather than blocking your message. Raw responses are
-logged to the console and the debug view.
+Fail open, never fail closed. If the side-call errors or returns nothing, the
+extension leaves the "Start Reply With" slot empty and lets the reply generate
+normally rather than blocking your message. Raw responses are logged to the
+console and the debug view.
 
 ## Install
 

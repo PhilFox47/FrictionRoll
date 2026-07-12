@@ -15,21 +15,17 @@ function archetypeLegendFor(tags) {
         .join('\n');
 }
 
-// A detached, analytical framing — deliberately NOT the roleplay persona, so
-// the model returns a neutral breakdown instead of answering in character.
+// The model writes, for each drawn archetype, the opening prose of the reply
+// where that outcome happens. The winning line becomes the reply's prefill
+// verbatim, so it is real prose (dialogue welcome) — no separate conversion.
 export function buildSystemPrompt() {
     return [
-        'You are an impartial adjudication engine for a tabletop roleplay session.',
-        'You do NOT write prose, dialogue, or roleplay, and you do NOT play any character.',
-        'Given the scene so far and the player\'s latest message, you output a short weighted menu of ways the story could plausibly continue in the very next beat.',
-        'Each outcome is ONE terse action bullet — a stage direction naming what happens next, NOT finished prose and NOT dialogue. A separate writer turns it into the actual scene, so never quote speech or describe tone, expression, gesture, or sensation. Name the event in a few words; the writer supplies everything else.',
-        'This is NOT only about whether the player\'s action succeeds. What happens next may follow directly from what the player did, OR it may come from elsewhere:',
-        'how another character reacts, something in the environment or the wider situation, an outside party noticing or intervening, a discovery, an interruption, or the plot turning in a particular direction.',
-        'ABSOLUTE RULE: outcomes describe ONLY what happens outside the player\'s own control — what other characters do or say, how the environment or situation shifts, what events occur.',
-        'You must NEVER state, imply, or dictate the player character\'s own actions, dialogue, thoughts, feelings, or reactions. Those belong to the player alone. You decide only what the player is reacting TO, never how they react.',
+        'You are a ghostwriter for a second-person interactive story.',
+        'Given the recent scene and the player\'s latest message, plus a set of possible ways the next beat could go, you write the OPENING of the next reply for each possibility — the first sentences where that outcome is clearly happening.',
+        'Write in the story\'s own voice, tense, and tone, exactly as the reply itself would open. Address the player as "you". Write other characters and the world normally — dialogue is welcome, this is real prose.',
+        'ABSOLUTE RULE: never narrate the player\'s own actions, dialogue, thoughts, feelings, or reactions. Write only what happens around and to them — what other characters do or say, how the situation shifts, what events occur. The player decides how they respond.',
+        'These openings are mutually exclusive alternatives: exactly ONE will be chosen at random and used as the literal start of the reply, the rest discarded. So each must stand entirely on its own and make sense as the only opening — never assume, continue, or build on another.',
         'Judge each outcome\'s probability honestly from the context. Do not inflate the odds of success, of the player\'s preferred result, or of the tamest option — real attempts can and do go badly.',
-        'The outcomes must be genuinely different from one another in how the scene actually develops — different directions and developments, not reworded versions of the same result.',
-        'They are mutually exclusive alternatives: exactly one will be chosen and the rest discarded, so each outcome must make sense entirely on its own and must never assume, continue, or build on another outcome in the menu.',
     ].join(' ');
 }
 
@@ -44,40 +40,35 @@ export function buildUserPrompt(contextText, action, settings, playerName = '', 
         "PLAYER'S LATEST MESSAGE (the beat to continue from):",
         action || '(the player has just acted or spoken; the situation is uncertain)',
         '',
-        'Write ONE possible outcome for EACH of these archetypes — exactly one line per archetype, using the token on the left verbatim as the TAG:',
+        'For EACH archetype below, write one line — the opening of the reply where that outcome happens — using the token on the left verbatim as the TAG:',
         archetypeLegendFor(tags),
         'Rules:',
-        `- CRITICAL: each outcome describes ONLY what happens around or to ${who} — what other characters do or say, how the environment or situation changes, what events occur. NEVER describe ${who}'s own actions, words, thoughts, feelings, or reactions. You decide what they react TO, never how they react.`,
-        '  Bad (dictates the player): "She laughs, and he laughs along as the tension breaks."  Good (external only): "She dissolves into laughter."',
-        '- Write each outcome as ONE terse action bullet, like a stage direction — not a sentence of a novel. Template: <actor> <does what> [-> immediate effect]. Actor first, one strong verb, the concrete event, about 6-15 words.',
-        '- HARD BANS in the text: (a) no quotation marks and NO dialogue of any kind — never write what anyone says, only THAT they say/demand/ask/reveal it; (b) no description of tone, facial expression, gesture, or sensation ("smirks", "traces a finger", "leans in close", "thoughtful hum" are all banned); (c) no mood-setting adverbs. Name the event; the writer supplies every word, gesture, and feeling.',
-        '  Bad: Joanne smirks, tracing a finger along your collarbone. "First, you\'ll kneel and prove your devotion..."  Good: Joanne seizes control and orders you to kneel and prove your devotion.',
-        '  Bad: Joanne pauses with a thoughtful hum. "Let\'s start slow. Tell me a fantasy..."  Good: Joanne dials it back and asks you to name a fantasy instead.',
+        `- CRITICAL: write ONLY what happens around or to ${who} — what other characters do or say, how the environment or situation changes, what events occur. NEVER write ${who}'s own actions, words, thoughts, feelings, or reactions. You write what they react TO, never how they react.`,
+        '  Bad (writes the player): She laughs, and you laugh along as the tension breaks.  Good (external only): She dissolves into laughter, the tension breaking as she leans back against the counter.',
+        '- Each line is the actual OPENING PROSE of the reply for that outcome — one to three sentences, in the story\'s voice, dialogue welcome. Put the outcome front and centre: whoever reads only this opening must see the outcome clearly happening, because the reply continues straight from it.',
+        '- Keep each outcome to a SINGLE line (no line breaks inside it). One line per archetype.',
         '- Use ONLY the archetypes listed above, each exactly once. Do not invent other tags or reuse one.',
-        '- INDEPENDENCE: the outcomes are mutually exclusive alternatives — exactly ONE will be chosen at random and the rest discarded. So every outcome must stand entirely on its own and make sense as the ONLY thing that happens next. Never assume, build on, continue, or react to another outcome in the list. Each should send the scene in a genuinely different direction.',
-        '  Bad (all assume she texted): "she sends a text" / "the text is a photo" / "your phone dies before you can reply".  Good (independent branches): she texts you the next day / she shows up at your door instead / she goes silent for days / a different person from that night contacts you.',
-        '- Make each archetype fit THIS scene. If one genuinely cannot fit what is happening, omit that single line rather than forcing it — but keep as many as you can.',
-        '- An outcome can hinge on the player\'s action, or on an external factor (another character\'s reaction, an outside event, a discovery, the plot advancing). It does not have to be about the action working or not.',
+        '- INDEPENDENCE: the outcomes are mutually exclusive — exactly ONE is chosen and the rest discarded. Each must stand alone and make sense as the ONLY opening. Never assume, build on, or continue another. Each should send the scene in a genuinely different direction.',
+        '  Bad (all assume she texted): "she sends a text" / "the text is a photo" / "your phone dies before you can reply".  Good (independent branches): she texts the next day / she shows up at your door instead / she goes silent for days / a different person from that night makes contact.',
+        '- Make each archetype fit THIS scene. If one genuinely cannot fit, omit that single line rather than forcing it — but keep as many as you can.',
         '- Note WORLD_* archetypes are judged only from the NPC\'s or world\'s point of view — a loss for them is not automatically a win for the player, and vice versa.',
-        '- ADVERSE OR DISRUPTIVE outcomes (LOSS, WORLD_LOSS, TWIST, REVERSAL, CONSEQUENCE, COMPLICATION) are allowed to be BIG and to carry real, lasting consequences: a plan ruined, a bond broken, an injury or a death, capture, exposure, a hard turn away from the card\'s expected plot. Do NOT take the easy way out with a soft, consequence-free version — when one of these lands, let it genuinely cost something and change the story, even if that breaks the natural flow of the scene.',
-        '- Continue THIS scene using what is already in it. Build outcomes from the people, objects, and threads already present. Do not introduce a brand-new character or entity that has never appeared (a passing janitor, a coach, a stranger) unless that genuinely is the single most interesting turn available.',
-        `- Do not hard-contradict a direct question or statement ${who} just made. An outcome that cuts that thread off entirely (e.g. an interruption that prevents any answer) should be rare, not a default.`,
-        '- A limp, consequence-free outcome in a charged situation is jarring — avoid it. It is fine for an adverse or disruptive outcome to break a calm moment and spike the stakes; that is welcome, not a problem.',
-        `- PERCENT is an integer from ${floor} to ${ceiling} reflecting how likely this outcome is. Nothing is 0 (impossible) or 100 (guaranteed). The percentages should roughly sum to 100 across your lines.`,
-        '- Each outcome is exactly one line, pipe-delimited: TAG|PERCENT|terse action bullet of what happens next.',
-        '- Output ONLY the outcome lines. No numbering, no preamble, no markdown, no blank lines, no commentary.',
+        '- ADVERSE OR DISRUPTIVE outcomes (LOSS, WORLD_LOSS, TWIST, REVERSAL, CONSEQUENCE, COMPLICATION) are allowed to be BIG and to carry real, lasting consequences: a plan ruined, a bond broken, an injury or a death, capture, exposure, a hard turn away from the card\'s expected plot. Do NOT take the easy way out with a soft, consequence-free version, even if it breaks the natural flow of the scene.',
+        '- Continue THIS scene using what is already in it. Do not introduce a brand-new character or entity that has never appeared unless that genuinely is the single most interesting turn available.',
+        `- Do not hard-contradict a direct question or statement ${who} just made. An outcome that cuts that thread off entirely should be rare, not a default.`,
+        `- PERCENT is an integer from ${floor} to ${ceiling} reflecting how likely this outcome is. Nothing is 0 or 100. The percentages should roughly sum to 100 across your lines.`,
+        '- Each outcome is exactly one line, pipe-delimited: TAG|PERCENT|opening prose. Output ONLY the outcome lines — no numbering, preamble, markdown, blank lines, or commentary.',
         '',
-        'Format example (illustrative tags only — use the archetypes listed above, not these). Note each line is a terse action bullet about other characters and the world, never the player, with no dialogue and no mood description:',
-        'WIN|25|The patrol passes the crates and moves on without noticing you.',
-        'LOSS|25|The patrol spots you and moves to surround you; this hiding spot is blown.',
-        'CLOCK|20|The smugglers finish loading and their truck pulls out.',
+        'Format example (illustrative tags only — use the archetypes listed above, not these). Each line is prose the reply could open with, about other characters and the world, never the player:',
+        'WIN|25|The patrol strides past the crates without a glance, their boots fading into the rain until the alley falls quiet again.',
+        'LOSS|25|"There!" One of them jabs a finger toward the crates and the whole patrol breaks into a run, boots hammering the wet stone as they close in.',
+        'CLOCK|20|Down the block an engine coughs and catches; the smugglers\' truck rolls forward, taillights sliding toward the main road with the last of the shipment aboard.',
     ];
 
     if (stricter) {
         lines.push(
             '',
-            'IMPORTANT: your previous response was malformed. Output ONLY lines of the form TAG|PERCENT|text, one per line, ' +
-            'one line per archetype listed above, using those tags verbatim. Output nothing else.',
+            'IMPORTANT: your previous response was malformed. Output ONLY lines of the form TAG|PERCENT|prose, one per line, ' +
+            'one line per archetype listed above, using those tags verbatim, no line breaks inside a line. Output nothing else.',
         );
     }
 
@@ -93,13 +84,12 @@ function asText(result) {
     return String(result ?? '');
 }
 
-// Run the side-call. Either reuse the active chat connection (generateRaw,
-// which bypasses the RP persona), or route through a configured Connection
-// Manager profile with a sampler override.
-export async function runSideCall(systemPrompt, userPrompt, maxTokens = 400, temperatureOverride = undefined) {
+// Run a side-call. Either reuse the active chat connection (generateRaw, which
+// bypasses the RP persona), or route through a configured Connection Manager
+// profile. Callers pass an explicit temperature per call.
+export async function runSideCall(systemPrompt, userPrompt, maxTokens = 400, temperature = undefined) {
     const ctx = getST();
     const settings = getSettings();
-    const temperature = Number.isFinite(temperatureOverride) ? temperatureOverride : settings.temperature;
 
     if (settings.connectionProfileId) {
         const CM = ctx.ConnectionManagerRequestService;
@@ -130,26 +120,9 @@ const LINE_RE = new RegExp(
     'i',
 );
 
-// Backstop for when the model ignores the "no dialogue / no prose" rules: strip
-// any quoted dialogue and tidy what's left, so a staged line at least reaches
-// the writer as an instruction rather than pre-written speech. A well-formed
-// instruction (no quotes) passes through untouched.
-export function sanitizeOutcomeText(raw) {
-    let t = String(raw ?? '').trim();
-    // Remove double-quoted spans (straight and curly) — i.e. dialogue. Single
-    // quotes are left alone so contractions ("you'll", "I'm") survive.
-    t = t.replace(/[“”][^“”]*[“”]/g, ' ');
-    t = t.replace(/"[^"]*"/g, ' ');
-    // Tidy whitespace and any punctuation left stranded by the removal.
-    t = t.replace(/\s+/g, ' ')
-        .replace(/\s+([,.;:!?])/g, '$1')
-        .replace(/[\s—–-]+$/g, '')
-        .replace(/[\s,;:]+$/g, '')
-        .trim();
-    return t;
-}
-
-// Strict, line-by-line parse. Malformed lines are discarded, not fatal.
+// Strict, line-by-line parse. The text is prose (dialogue allowed) that becomes
+// the reply's prefill, so it is kept as-is apart from trimming. Malformed lines
+// are discarded, not fatal.
 export function parseMenu(raw) {
     const out = [];
     if (!raw) return out;
@@ -158,7 +131,7 @@ export function parseMenu(raw) {
         if (!m) continue;
         const tag = m[1].toUpperCase();
         const pct = parseInt(m[2], 10);
-        const text = sanitizeOutcomeText(m[3]);
+        const text = m[3].trim();
         if (!text || !Number.isFinite(pct)) continue;
         out.push({ tag, pct, text });
     }
