@@ -5,7 +5,6 @@
     "optional": [],
     "js": "index.js",
     "css": "style.css",
-    "generate_interceptor": "outcomeRollGenerationInterceptor",
     "author": "PhilFox47",
     "version": "1.0.0",
     "homePage": "https://github.com/PhilFox47/FrictionRoll",

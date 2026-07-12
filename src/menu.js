@@ -96,9 +96,10 @@ function asText(result) {
 // Run the side-call. Either reuse the active chat connection (generateRaw,
 // which bypasses the RP persona), or route through a configured Connection
 // Manager profile with a sampler override.
-export async function runSideCall(systemPrompt, userPrompt, maxTokens = 400) {
+export async function runSideCall(systemPrompt, userPrompt, maxTokens = 400, temperatureOverride = undefined) {
     const ctx = getST();
     const settings = getSettings();
+    const temperature = Number.isFinite(temperatureOverride) ? temperatureOverride : settings.temperature;
 
     if (settings.connectionProfileId) {
         const CM = ctx.ConnectionManagerRequestService;
@@ -107,7 +108,7 @@ export async function runSideCall(systemPrompt, userPrompt, maxTokens = 400) {
         // both text-completion and chat-completion profiles.
         const prompt = `${systemPrompt}\n\n${userPrompt}`;
         const overridePayload = {};
-        if (Number.isFinite(settings.temperature)) overridePayload.temperature = settings.temperature;
+        if (Number.isFinite(temperature)) overridePayload.temperature = temperature;
         const result = await CM.sendRequest(settings.connectionProfileId, prompt, maxTokens, undefined, overridePayload);
         return asText(result);
     }
@@ -115,7 +116,7 @@ export async function runSideCall(systemPrompt, userPrompt, maxTokens = 400) {
     // Detached raw generation on the active connection.
     const opts = { prompt: userPrompt, systemPrompt, responseLength: maxTokens };
     // Best-effort sampler override (honored on paths that read it; harmless otherwise).
-    if (Number.isFinite(settings.temperature)) opts.temperature = settings.temperature;
+    if (Number.isFinite(temperature)) opts.temperature = temperature;
     const result = await ctx.generateRaw(opts);
     return asText(result);
 }

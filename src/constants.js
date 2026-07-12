@@ -2,12 +2,6 @@
 
 export const MODULE_NAME = 'outcome-roll';
 
-// The rolled outcome reaches the model through this macro, NOT a positional
-// prompt injection. The preset embeds {{frictionroll}} inside its own
-// final-instruction block, so nothing can be inserted between the rules and the
-// directive.
-export const MACRO_NAME = 'frictionroll';
-
 // The outcome archetypes the side-call can choose from. These are INTERNAL —
 // the writer never sees the tag (the directive only delivers the outcome text),
 // so this taxonomy purely shapes what kinds of beats get generated. Compact
@@ -52,8 +46,13 @@ export const defaultSettings = {
     // Any other value is a Connection Manager profile id used for the side-call.
     connectionProfileId: '',
 
-    // Sampler override for the side-call (structured output wants low temp).
+    // Sampler override for the outcome-menu side-call (structured, low temp).
     temperature: 0.5,
+
+    // The prefill side-call is creative writing, so it uses a higher temp near
+    // the main roleplay generation, and a small token budget (1-2 sentences).
+    prefillTemperature: 0.9,
+    prefillMaxTokens: 120,
 
     // Optional: pop a small editor to specify/edit the action before rolling.
     promptForAction: false,

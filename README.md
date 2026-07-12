@@ -11,11 +11,11 @@ written, a detached side-call proposes a few plausible ways the next beat could
 go — the player's action landing or not, but also how other characters react,
 outside events, discoveries, or the plot turning — each with a probability. A
 genuine local random roll picks one, and that development — not the model's
-preference — becomes what the reply is written around.
+preference — is written as the literal opening of the reply, so the model must
+continue *from* it rather than around it.
 
-It's a standalone companion to the **Friction Lite** preset (it reuses the same
-`WIN` / `COST` / `SETBACK` vocabulary), but works with any preset and is
-completely inert until you trigger it.
+It's a standalone companion to the **Friction Lite** preset but works with any
+preset, needs no preset changes, and is completely inert until you trigger it.
 
 ## How it works
 
@@ -36,32 +36,33 @@ automatically before the reply is written:
 4. A real random 1–100 is rolled **locally** (never by the model) and mapped
    against the menu's cumulative ranges — higher-probability outcomes are more
    likely to be selected.
-5. The selected outcome becomes the value of a SillyTavern macro,
-   `{{frictionroll}}`, which the preset embeds inside its own final-instruction
-   block — so the directive resolves *inside* that block's text and nothing
-   (World Info, other depth-0 entries) can be inserted between the rules and it.
-6. **Then** the main reply is generated, written around the directive. The
-   directive never appears in chat.
+5. A **second, creative side-call** turns the selected outcome into the opening
+   1–2 sentences of the reply, in the story's own second-person voice.
+6. That opening is written into SillyTavern's **"Start Reply With"** slot
+   (`power_user.user_prompt_bias`), so it becomes the literal, visible beginning
+   of the reply — the outcome is already on the page when generation starts,
+   not an instruction the model can quietly ignore. The main reply continues
+   from it. The slot is cleared afterwards (restoring any value you had set).
 7. After the reply, an optional **outcome evaluation** asks the model a plain
    Yes/No: did the reply actually deliver the selected outcome? The verdict is
    logged to the console and the debug view for visibility.
-8. **Swiping** that reply automatically re-rolls the dice against the *same*
-   menu before the swipe completes — no new side-call, just a fresh roll and
-   selection, so the beat's outcome space stays consistent. Moving on to a new
-   message clears the directive so it can't leak into a later, unrelated turn.
+8. **Swiping** that reply automatically regenerates the whole chain — fresh
+   menu, fresh roll, fresh prefill — before the swipe completes. Moving on to a
+   new message clears the slot so nothing leaks into a later, unrelated turn.
 
-The roll is wired as a SillyTavern **generate interceptor** (declared in
-`manifest.json`), which SillyTavern awaits *before* building the main prompt —
-so the whole pipeline completes and the outcome is injected before the reply is
-generated. This is the same reliable hook other pre-generation extensions use;
-a plain send does not emit a usable `'normal'` event type.
+The chain is wired to the **`GENERATION_STARTED`** event, which SillyTavern
+emits early in generation (before the "Start Reply With" value is read) and
+awaits — so the roll and prefill are in place before the main reply builds. A
+plain send often has an `undefined` generation type, so anything that isn't a
+known special type (swipe / regenerate / quiet / impersonate / continue) is
+treated as a send.
 
 ## Trigger model
 
 | Action | Behavior |
 | --- | --- |
 | Send a message | **Auto-roll** before the reply (default; toggleable). |
-| Swipe / regenerate the reply | **Automatic** dice re-roll against the same menu, no new side-call (toggleable). |
+| Swipe / regenerate the reply | **Automatic** fresh chain — new menu, roll, and prefill (toggleable). |
 | 🎲 button / `/roll-outcome` | Manual roll — a pre-roll that the next send uses (still available; the primary path when auto-roll is off). |
 | Auto-roll off, no manual roll | Zero effect — no side-calls, no injection. |
 
@@ -75,38 +76,31 @@ only when you want an attempt adjudicated.
   5/70 — nothing is impossible or guaranteed).
 - **Context** message count and token budget for the side-call.
 - **Connection**: reuse the active chat connection, or pick a Connection
-  Manager profile just for the side-call.
-- **Side-call temperature** — keep it low; this is structured output, not prose.
+  Manager profile just for the side-calls.
+- **Outcome-menu temperature** — keep it low; this is structured output.
+- **Prefill temperature** — creative writing; keep it near your main roleplay
+  temperature.
 - **Prompt to edit the action** before rolling (optional).
 - **Automatic re-roll on swipe** (default on).
 - **Evaluate outcome** (default on) — a Yes/No side-call after each reply that
   logs whether the outcome was actually delivered (visibility only).
-- **Show roll result after the reply** (default off — showing it *before*
-  defeats the purpose; *after* is fine as flavor).
-- **Debug view**: the last full menu, raw roll, selected outcome, and raw
-  side-call response, for tuning wording without cluttering chat.
+- **Show roll result after the reply** (default off).
+- **Debug view**: the last full menu, raw roll, selected outcome, generated
+  prefill, and raw side-call response.
 
 ## Failure handling
 
-Fail open, never fail closed. If the side-call errors, or parsing fails twice,
-or a required tag never appears, the extension shows a small notice and injects
-nothing rather than blocking your message. Raw responses are logged to the
-console and the debug view.
+Fail open, never fail closed. If the outcome or prefill side-call errors or
+returns nothing, the extension leaves the "Start Reply With" slot empty and lets
+the reply generate normally rather than blocking your message. Raw responses are
+logged to the console and the debug view.
 
 ## Install
 
 Use SillyTavern's **Install Extension** with this repository URL, or clone into
-`SillyTavern/public/scripts/extensions/third-party/`.
-
-## Preset setup — the `{{frictionroll}}` macro
-
-The directive is delivered through a macro, not a positional injection, so the
-preset must place `{{frictionroll}}` where the directive should appear —
-ideally at the very end of its final-instruction block. Friction Lite v6
-already bakes this placeholder into that block. With any other preset, add
-`{{frictionroll}}` yourself; without it, rolls still happen but the model never
-sees the outcome. The macro resolves to an empty string whenever no roll is
-active, so it's harmless when idle.
+`SillyTavern/public/scripts/extensions/third-party/`. No preset changes are
+required — the outcome is delivered through the built-in "Start Reply With"
+mechanism.
 
 ## Outcome archetypes
 
@@ -127,15 +121,15 @@ drawn archetype, and may drop one that genuinely can't fit. The bag resets per
 chat, and the debug view shows each turn's draw. A local d100 then picks the
 winner, weighted by the model's percentages.
 
-These tags are internal — the writer only ever receives the outcome text, never
-the tag — so you can add, remove, or reword archetypes freely without affecting
-the prose.
+These tags are internal — the writer only ever sees the generated opening prose,
+never the tag or the outcome text — so you can add, remove, or reword archetypes
+freely without affecting the prose.
 
 ## Compatibility with Friction Lite
 
-The extension has no dependency on Friction Lite (or any preset) and is inert
-without one, aside from needing the `{{frictionroll}}` placeholder above to
-actually reach the model.
+The extension has no dependency on Friction Lite (or any preset). It delivers the
+outcome through SillyTavern's built-in "Start Reply With" slot, so no preset
+changes are needed.
 
 ## Out of scope (v1)
 

@@ -86,9 +86,15 @@ const SETTINGS_HTML = `
       </div>
 
       <div class="or-row">
-        <label for="or_temperature">Side-call temperature</label>
+        <label for="or_temperature">Outcome-menu temperature</label>
         <input type="number" id="or_temperature" min="0" max="2" step="0.05" class="text_pole">
-        <small class="or-hint">Structured output wants a low, deterministic value. Applied on the side-call.</small>
+        <small class="or-hint">Structured output wants a low, deterministic value.</small>
+      </div>
+
+      <div class="or-row">
+        <label for="or_prefillTemperature">Prefill (opening prose) temperature</label>
+        <input type="number" id="or_prefillTemperature" min="0" max="2" step="0.05" class="text_pole">
+        <small class="or-hint">Creative writing — keep near your main roleplay temperature.</small>
       </div>
 
       <label class="checkbox_label" for="or_autoRollOnSend">
@@ -104,7 +110,7 @@ const SETTINGS_HTML = `
       <label class="checkbox_label" for="or_evaluateOutcome">
         <input type="checkbox" id="or_evaluateOutcome"><span>Evaluate whether the reply delivered the outcome (Yes/No, logged)</span>
       </label>
-      <small class="or-hint">Requires the preset to embed the <code>{{frictionroll}}</code> macro in its final-instruction block. Evaluation adds one small side-call per reply and logs the verdict to the console / debug view.</small>
+      <small class="or-hint">The outcome is written into SillyTavern's "Start Reply With" slot as a generated opening, so it's already on the page when the reply begins. Evaluation adds one small side-call per reply and logs the verdict.</small>
       <label class="checkbox_label" for="or_showResultAfter">
         <input type="checkbox" id="or_showResultAfter"><span>Show roll result as flavor AFTER the reply</span>
       </label>
@@ -134,6 +140,7 @@ const FIELDS = {
     or_contextTokenBudget: ['contextTokenBudget', 'int'],
     or_connectionProfileId: ['connectionProfileId', 'str'],
     or_temperature: ['temperature', 'float'],
+    or_prefillTemperature: ['prefillTemperature', 'float'],
     or_autoRollOnSend: ['autoRollOnSend', 'bool'],
     or_promptForAction: ['promptForAction', 'bool'],
     or_autoRerollOnSwipe: ['autoRerollOnSwipe', 'bool'],
@@ -219,6 +226,7 @@ function renderDebug(last, history) {
     }
     if (d.roll != null) lines.push(`roll: ${d.roll}/100`);
     if (d.selected) lines.push(`SELECTED -> ${d.selected.tag}: ${d.selected.text}`);
+    if (d.prefill) lines.push(`PREFILL -> ${d.prefill}`);
     if (d.evaluation) lines.push(`evaluation: ${String(d.evaluation).toUpperCase()}`);
     lines.push('');
     lines.push('--- raw side-call response ---');
