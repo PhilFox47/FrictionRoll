@@ -69,39 +69,62 @@ export function sanitizePrefill(raw) {
 let overridden = false;
 let savedUserBias = '';
 
-export function setPrefill(text) {
+// Read the effective "Start Reply With" value. Prefer the live powerUserSettings
+// reference from getContext(); fall back to the DOM field for builds where that
+// isn't the live object.
+function readBias() {
     const pu = getST()?.powerUserSettings;
-    if (!pu) return;
+    if (pu && typeof pu.user_prompt_bias === 'string') return pu.user_prompt_bias;
+    try {
+        const $ = globalThis.jQuery;
+        const el = $ && $('#start_reply_with');
+        if (el && el.length) return String(el.val() ?? '');
+    } catch { /* field not present */ }
+    return '';
+}
+
+// Write the "Start Reply With" value through BOTH paths, so it lands no matter
+// how this ST build exposes state:
+//   1. the live powerUserSettings reference (getBiasStrings reads power_user
+//      directly), and
+//   2. the #start_reply_with field WITH a dispatched 'input' event, which drives
+//      ST's own handler (power_user.user_prompt_bias = field value) — the only
+//      reliable path if getContext()'s powerUserSettings isn't the live object.
+// Setting only the field value (no 'input' event) never updates power_user, which
+// is why the generated opening wasn't being prefilled.
+function writeBias(value) {
+    const v = String(value ?? '');
+    const pu = getST()?.powerUserSettings;
+    if (pu) pu.user_prompt_bias = v;
+    try {
+        const $ = globalThis.jQuery;
+        const el = $ && $('#start_reply_with');
+        if (el && el.length) {
+            el.val(v);
+            const raw = el[0];
+            if (raw && typeof raw.dispatchEvent === 'function') {
+                raw.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+    } catch { /* field not present */ }
+}
+
+export function setPrefill(text) {
     if (!overridden) {
-        savedUserBias = pu.user_prompt_bias ?? '';
+        savedUserBias = readBias();
         overridden = true;
     }
-    pu.user_prompt_bias = String(text ?? '');
-    syncField(pu.user_prompt_bias);
+    writeBias(text);
+    // Diagnostic: confirm the value actually landed where generation reads it.
+    const pu = getST()?.powerUserSettings;
+    console.info(`[Outcome Roll] prefill set — powerUserSettings ${pu ? 'present' : 'MISSING'}, effective bias now: ${JSON.stringify(readBias()).slice(0, 120)}`);
 }
 
 // Restore the user's original "Start Reply With" value so nothing leaks into a
 // later, unrelated reply.
 export function clearPrefill() {
     if (!overridden) return;
-    const pu = getST()?.powerUserSettings;
-    if (pu) {
-        pu.user_prompt_bias = savedUserBias;
-        syncField(pu.user_prompt_bias);
-    }
+    writeBias(savedUserBias);
     overridden = false;
     savedUserBias = '';
-}
-
-// Keep the visible field in step with the backing value (cosmetic; generation
-// reads the value, not the field). Element type varies, so set defensively.
-function syncField(value) {
-    try {
-        const $ = globalThis.jQuery;
-        const el = $ && $('#start_reply_with');
-        if (el && el.length) {
-            if (el.is('textarea, input')) el.val(value);
-            else el.text(value);
-        }
-    } catch { /* field not present */ }
 }
