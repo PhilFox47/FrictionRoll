@@ -2,19 +2,24 @@
 //
 //   pending = {
 //     menu, roll, selected,          // the current adjudicated outcome
-//     prefill,                       // the winning outcome's prose (the opening)
-//     status: 'primed' | 'committed' // primed = rolled, not yet generated;
+//     prefill,                       // the winning outcome's opening paragraph
+//     status: 'primed' | 'committed' // primed = rolled, not yet delivered;
 //                                     // committed = a reply was produced with it
 //     messageId,                     // chat index of that reply (committed only)
 //   }
 //
-// The winning outcome's prose is written into power_user's "Start Reply With"
-// slot as the reply's opening. That value is read EARLY in Generate
-// (getBiasStrings), so it must be set before generation — hence the trigger is
-// the early, awaited GENERATION_STARTED event. Because that fires BEFORE the
-// user message is committed to chat, the send action is read from the composer
-// textarea (see context.getPlayerAction), and feedback is a toast rather than a
-// button swap (swapping the Send button broke its restore on abort).
+// Delivery is split across the generation lifecycle so the SEND is never delayed:
+//
+//   GENERATION_STARTED  – fires before your message is rendered. We do NOT roll
+//                         here (that would delay the message); we only note that
+//                         this generation should be adjudicated ("arm" it).
+//   *_PROMPT_READY       – fires while the REPLY prompt is assembled, AFTER your
+//                         message is already on screen. Here we roll, generate
+//                         the opening paragraph, and inject it into the outgoing
+//                         prompt as the reply's seeded opening. Blocking here
+//                         delays only the reply, which is expected.
+//   GENERATION_ENDED    – the reply is in chat; prepend the paragraph to it so
+//                         the opening is visible, then commit + evaluate.
 
 import { getST, getSettings } from './settings.js';
 import { MENU_MAX_TOKENS, EVAL_MAX_TOKENS, EVAL_TEMPERATURE } from './constants.js';
@@ -25,16 +30,16 @@ import {
 } from './menu.js';
 import { rollD100, selectByRoll } from './roll.js';
 import { drawArchetypes, resetBag } from './bag.js';
-import { generatePrefill, setPrefill, clearPrefill } from './prefill.js';
-import { setDirective, clearDirective } from './directive.js';
+import { generatePrefill, injectPrefillIntoPrompt, prependParagraphToMessage } from './prefill.js';
 import { setDebug, annotateDebug } from './debug.js';
 import { buildEvalSystemPrompt, buildEvalUserPrompt, parseEvalVerdict } from './evaluate.js';
 
 let pending = null;
-let busy = false;            // a pipeline (manual/send/swipe) is running
-let consumeOnReceive = false; // the in-flight normal generation is using the primed roll
-let showToastNext = false;    // a swipe wants a post-hoc result toast
+let busy = false;             // a pipeline (our own side-calls) is running
+let armed = null;             // { mode, messageId? } — set at GENERATION_STARTED, consumed at PROMPT_READY
+let deliverParagraph = null;  // paragraph to prepend once the reply lands (one-shot)
 let judgeThisReply = false;   // the reply about to land should be evaluated
+let showToastNext = false;    // show a post-hoc result toast for this reply
 
 export function isBusy() { return busy; }
 export function getPending() { return pending; }
@@ -52,16 +57,15 @@ function showResultToast(p) {
     notify('info', `🎲 ${p.roll}/100 → ${p.selected.tag}: ${p.selected.text}`, { timeOut: 9000, extendedTimeOut: 3000 });
 }
 
-// The pipeline runs at GENERATION_STARTED, before ST flips Send->Stop, so a
-// non-blocking toast is the safe way to signal "rolling" (touching the buttons
-// broke their restore on abort). Auto-dismisses when the reply starts.
+// The roll runs at PROMPT_READY (the reply is already generating), so a
+// non-blocking toast signals "rolling" without touching the Send/Stop buttons.
 function showRollingToast() {
     notify('info', '🎲 Rolling for the next outcome…', { timeOut: 4000 });
 }
 
-// One side-call: for each drawn archetype the model writes the opening prose of
-// the reply where that outcome happens. Then parse/dedupe/validate ->
-// normalize -> roll -> select. Throws on unrecoverable failure (fail open).
+// One side-call: for each drawn archetype the model writes a terse outcome
+// bullet. Then parse/dedupe/validate -> normalize -> roll -> select. Throws on
+// unrecoverable failure (caller fails open).
 async function generateMenu(mode, { actionOverride } = {}) {
     const settings = getSettings();
     const contextText = await gatherContext(mode);
@@ -104,11 +108,9 @@ async function generateMenu(mode, { actionOverride } = {}) {
     return { menu: ranges, roll, selected, contextText };
 }
 
-// Roll a bullet menu, pick one, then turn the winner into (a) the reply's
-// opening prose in the "Start Reply With" slot [the prefill — forces the
-// opening] and (b) the {{frictionroll}} directive [steers the rest]. `busy`
-// guards re-entrancy from our own side-calls. Fails open: on error the slot and
-// directive are cleared and the reply generates normally.
+// Roll a bullet menu, pick one, then turn the winner into the reply's opening
+// paragraph. `busy` guards re-entrancy from our own side-calls (which re-emit the
+// prompt-ready events). Returns the paragraph, or '' on failure (fail open).
 async function produceOutcome(mode, { actionOverride, committed = false, messageId = null } = {}) {
     busy = true;
     try {
@@ -118,24 +120,19 @@ async function produceOutcome(mode, { actionOverride, committed = false, message
         try {
             prefill = await generatePrefill(result.contextText, result.selected.text);
         } catch (e) {
-            console.warn('[Outcome Roll] prefill generation failed — using the directive only.', e);
+            console.warn('[Outcome Roll] opening-paragraph generation failed.', e);
             prefill = '';
         }
 
         pending = { ...result, prefill, status: committed ? 'committed' : 'primed', messageId };
-        if (prefill) setPrefill(prefill); else clearPrefill();
-        setDirective(result.selected); // {{frictionroll}} steers the rest either way
-
         annotateDebug({ prefill: prefill || '(none)' });
         console.info(`[Outcome Roll] ${mode} roll ${result.roll}/100 → ${result.selected.tag}: ${result.selected.text}`);
-        console.info(`[Outcome Roll] prefill: ${prefill || '(empty)'}`);
-        return true;
+        console.info(`[Outcome Roll] opening paragraph: ${prefill || '(empty)'}`);
+        return prefill;
     } catch (e) {
         console.error(`[Outcome Roll] ${mode} roll failed`, e);
-        clearPrefill();
-        clearDirective();
         if (committed) pending = null;
-        return false;
+        return '';
     } finally {
         busy = false;
     }
@@ -159,8 +156,8 @@ export async function onManualRoll() {
         }
     }
 
-    const ok = await produceOutcome('manual', { actionOverride, committed: false, messageId: null });
-    if (ok) notify('success', '🎲 Rolled — opening ready. Send your message.');
+    const paragraph = await produceOutcome('manual', { actionOverride, committed: false, messageId: null });
+    if (paragraph) notify('success', '🎲 Rolled — opening ready. Send your message.');
     else notify('warning', 'Roll failed — continuing without an adjudicated outcome.');
 }
 
@@ -173,24 +170,24 @@ function isDryRun(options, dryRun) {
     return dryRun === true || options === true || options?.dryRun === true;
 }
 
-// --- The automatic trigger: GENERATION_STARTED ------------------------------
-// Emitted early in Generate() (before getBiasStrings reads the prefill slot) and
-// awaited, so the whole chain runs here and the prefill is in place before the
-// main generation builds. Handles the type unreliability (a plain send often has
-// type undefined) by treating anything that isn't a known special type as a send.
-export async function onGenerationStarted(type, options, dryRun) {
+// --- The automatic trigger, part 1: GENERATION_STARTED ----------------------
+// Fires before your sent message is rendered, so it does NO work that would
+// delay it — it only decides whether this generation should be adjudicated and
+// arms it. The actual roll happens later, at PROMPT_READY.
+export function onGenerationStarted(type, options, dryRun) {
     if (isDryRun(options, dryRun)) return;
     if (busy) return; // re-entrancy from our own side-call generations
     const settings = getSettings();
     if (!settings.enabled) return;
 
-    // Swipe / regenerate: regenerate the whole chain fresh (new menu, roll, prefill).
+    armed = null; // each generation re-decides
+
+    // Swipe / regenerate: re-roll the whole chain fresh.
     if (SWIPE_TYPES.has(type)) {
         if (!settings.autoRerollOnSwipe) return;
         if (!pending || pending.status !== 'committed') return;
+        armed = { mode: 'swipe', messageId: pending.messageId };
         showRollingToast();
-        const ok = await produceOutcome('swipe', { committed: true, messageId: pending.messageId });
-        if (ok) { showToastNext = settings.showResultAfter; judgeThisReply = true; }
         return;
     }
 
@@ -198,48 +195,85 @@ export async function onGenerationStarted(type, options, dryRun) {
     if (SKIP_TYPES.has(type)) return;
 
     // Otherwise this is a fresh player send (type is 'normal', undefined, '').
-    // A primed roll (manual pre-roll, or a double-fire) takes precedence: keep
-    // its prefill and consume it rather than rolling again.
+    // A primed roll (manual pre-roll) takes precedence: deliver it, don't re-roll.
     if (pending?.status === 'primed') {
-        consumeOnReceive = true;
-        judgeThisReply = true;
+        armed = { mode: 'primed' };
         return;
     }
 
-    // Advancing to a new turn — clear any stale prefill first.
-    if (pending?.status === 'committed') {
-        clearPrefill();
-        pending = null;
-    }
+    // Advancing to a new turn — drop last turn's committed state.
+    if (pending?.status === 'committed') pending = null;
 
     if (!settings.autoRollOnSend) return; // manual-only mode
 
+    armed = { mode: 'send' };
     showRollingToast();
-    const ok = await produceOutcome('send', { committed: false, messageId: null });
-    if (ok) { consumeOnReceive = true; judgeThisReply = true; }
 }
 
-// --- GENERATION_ENDED: clear the prefill slot, commit, evaluate -------------
+// --- The automatic trigger, part 2: PROMPT_READY ----------------------------
+// Wired to BOTH chat_completion_prompt_ready (chat completion) and
+// generate_after_combine_prompts (text completion). Fires while the reply prompt
+// is assembled — after your message is on screen — so rolling here delays only
+// the reply. Rolls (or reuses a primed roll) and injects the opening paragraph
+// into the outgoing prompt.
+export async function onPromptReady(eventData) {
+    if (busy) return;                              // our own side-calls re-emit this
+    if (!armed) return;
+    if (!eventData || eventData.dryRun) return;
+
+    const isChat = Array.isArray(eventData.chat);
+    const isText = !isChat && typeof eventData.prompt === 'string';
+    if (!isChat && !isText) return;
+    // Chat completion also emits the text event (with an empty prompt) before the
+    // chat event — ignore it there and wait for the real chat-array event, so we
+    // don't consume the armed roll on the wrong prompt shape.
+    if (isText && getST()?.mainApi === 'openai') return;
+
+    const a = armed;
+    armed = null; // one-shot: we own this generation now
+
+    const settings = getSettings();
+    if (!settings.enabled) return;
+
+    try {
+        let paragraph = '';
+        if (a.mode === 'primed' && pending?.status === 'primed' && pending.prefill) {
+            paragraph = pending.prefill; // manual pre-roll — reuse, don't re-roll
+        } else {
+            paragraph = await produceOutcome(a.mode, {
+                committed: a.mode === 'swipe',
+                messageId: a.messageId ?? null,
+            });
+        }
+        if (!paragraph) return; // fail open — reply generates normally
+
+        if (injectPrefillIntoPrompt(eventData, paragraph)) {
+            deliverParagraph = paragraph;
+            judgeThisReply = true;
+            showToastNext = settings.showResultAfter;
+        }
+    } catch (e) {
+        console.error('[Outcome Roll] prompt-ready delivery failed', e);
+    }
+}
+
+// --- GENERATION_ENDED: prepend the opening, commit, evaluate ----------------
 export function onGenerationEnded() {
     if (busy) return; // ignore our own side-call end events
     const settings = getSettings();
     if (!settings.enabled) return;
 
-    // The generation has consumed the prefill + directive; clear both so they
-    // can never leak into a later, unrelated reply.
-    clearPrefill();
-    clearDirective();
-
-    if (consumeOnReceive && pending?.status === 'primed') {
-        pending.status = 'committed';
-        pending.messageId = (getST()?.chat?.length ?? 1) - 1;
-        consumeOnReceive = false;
-        if (settings.showResultAfter) showResultToast(pending);
-    }
-
-    if (showToastNext) {
-        showToastNext = false;
-        if (settings.showResultAfter && pending) showResultToast(pending);
+    if (deliverParagraph) {
+        const para = deliverParagraph;
+        deliverParagraph = null;
+        const chat = getST()?.chat ?? [];
+        const messageId = chat.length - 1;
+        prependParagraphToMessage(messageId, para);
+        if (pending) { pending.status = 'committed'; pending.messageId = messageId; }
+        if (showToastNext) {
+            showToastNext = false;
+            if (settings.showResultAfter) showResultToast(pending);
+        }
     }
 
     if (judgeThisReply) {
@@ -278,12 +312,11 @@ async function evaluateReply() {
 
 // --- Chat switch / reset: wipe everything so nothing leaks across chats -----
 export function onChatChanged() {
-    clearPrefill();
-    clearDirective();
     resetBag(); // each story rotates its archetypes independently
     pending = null;
-    consumeOnReceive = false;
-    showToastNext = false;
+    armed = null;
+    deliverParagraph = null;
     judgeThisReply = false;
+    showToastNext = false;
     busy = false;
 }

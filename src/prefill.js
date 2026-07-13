@@ -1,11 +1,16 @@
-// The winning outcome's prose is placed in SillyTavern's "Start Reply With" slot
-// (power_user.user_prompt_bias), so it becomes the literal, visible opening of
-// the reply and the model continues from it — not an instruction it can ignore.
+// The winning outcome's prose becomes the literal opening of the reply. It is
+// delivered by manipulating the OUTGOING reply prompt directly (not the "Start
+// Reply With" slot, which SillyTavern reads before your sent message is even
+// rendered — so using it always delays the send):
 //
-// power_user.user_prompt_bias is read early in Generate (via getBiasStrings), so
-// the value must be set BEFORE generation. state.js does this from the
-// GENERATION_STARTED handler (early + awaited). We preserve and restore any
-// static value the user had set in that field.
+//   1. injectPrefillIntoPrompt() appends the paragraph as the model's own
+//      opening — an assistant prefix for chat completion, or appended text for
+//      text completion — so the model continues FROM it and can't route around
+//      it. This runs at the prompt-ready event, which fires AFTER your message
+//      is already on screen, so the send is never delayed.
+//   2. The model's continuation comes back without the prefix (it was seeded as
+//      already-said), so prependParagraphToMessage() prepends the paragraph to
+//      the finished reply and re-renders it — making the opening visible.
 
 import { getST, getSettings } from './settings.js';
 import { PREFILL_MAX_TOKENS } from './constants.js';
@@ -66,65 +71,51 @@ export function sanitizePrefill(raw) {
     return t;
 }
 
-let overridden = false;
-let savedUserBias = '';
-
-// Read the effective "Start Reply With" value. Prefer the live powerUserSettings
-// reference from getContext(); fall back to the DOM field for builds where that
-// isn't the live object.
-function readBias() {
-    const pu = getST()?.powerUserSettings;
-    if (pu && typeof pu.user_prompt_bias === 'string') return pu.user_prompt_bias;
-    try {
-        const $ = globalThis.jQuery;
-        const el = $ && $('#start_reply_with');
-        if (el && el.length) return String(el.val() ?? '');
-    } catch { /* field not present */ }
-    return '';
-}
-
-// Write the "Start Reply With" value through BOTH paths, so it lands no matter
-// how this ST build exposes state:
-//   1. the live powerUserSettings reference (getBiasStrings reads power_user
-//      directly), and
-//   2. the #start_reply_with field WITH a dispatched 'input' event, which drives
-//      ST's own handler (power_user.user_prompt_bias = field value) — the only
-//      reliable path if getContext()'s powerUserSettings isn't the live object.
-// Setting only the field value (no 'input' event) never updates power_user, which
-// is why the generated opening wasn't being prefilled.
-function writeBias(value) {
-    const v = String(value ?? '');
-    const pu = getST()?.powerUserSettings;
-    if (pu) pu.user_prompt_bias = v;
-    try {
-        const $ = globalThis.jQuery;
-        const el = $ && $('#start_reply_with');
-        if (el && el.length) {
-            el.val(v);
-            const raw = el[0];
-            if (raw && typeof raw.dispatchEvent === 'function') {
-                raw.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-        }
-    } catch { /* field not present */ }
-}
-
-export function setPrefill(text) {
-    if (!overridden) {
-        savedUserBias = readBias();
-        overridden = true;
+// Append the opening paragraph to the OUTGOING reply prompt so the model treats
+// it as the start of its own reply and continues from there. Handles both prompt
+// shapes SillyTavern emits right before the request:
+//   - chat completion: eventData.chat is an array of {role, content}; push an
+//     assistant message so it becomes the reply's seeded opening (Claude-style
+//     prefill — the same mechanism ST's own "Start Reply With" uses).
+//   - text completion: eventData.prompt is a string; append the paragraph so the
+//     model continues from it.
+// Returns true if it injected.
+export function injectPrefillIntoPrompt(eventData, paragraph) {
+    const text = String(paragraph ?? '').trim();
+    if (!text || !eventData) return false;
+    if (Array.isArray(eventData.chat)) {
+        eventData.chat.push({ role: 'assistant', content: text });
+        return true;
     }
-    writeBias(text);
-    // Diagnostic: confirm the value actually landed where generation reads it.
-    const pu = getST()?.powerUserSettings;
-    console.info(`[Outcome Roll] prefill set — powerUserSettings ${pu ? 'present' : 'MISSING'}, effective bias now: ${JSON.stringify(readBias()).slice(0, 120)}`);
+    if (typeof eventData.prompt === 'string') {
+        const sep = eventData.prompt.length && !/\s$/.test(eventData.prompt) ? ' ' : '';
+        eventData.prompt = eventData.prompt + sep + text;
+        return true;
+    }
+    return false;
 }
 
-// Restore the user's original "Start Reply With" value so nothing leaks into a
-// later, unrelated reply.
-export function clearPrefill() {
-    if (!overridden) return;
-    writeBias(savedUserBias);
-    overridden = false;
-    savedUserBias = '';
+// Make the seeded opening visible: the model's continuation returns WITHOUT the
+// prefix (it was given as already-said), so prepend the paragraph to the
+// finished reply message and re-render it. Idempotent — a reply that already
+// starts with the paragraph is left alone.
+export function prependParagraphToMessage(messageId, paragraph) {
+    const ctx = getST();
+    const chat = ctx?.chat;
+    const text = String(paragraph ?? '').trim();
+    if (!ctx || !Array.isArray(chat) || !text) return false;
+
+    const msg = chat[messageId];
+    if (!msg || msg.is_user || typeof msg.mes !== 'string') return false;
+    if (msg.mes.trimStart().startsWith(text)) return true; // already there
+
+    const joined = `${text}\n\n${msg.mes.replace(/^\s+/, '')}`;
+    msg.mes = joined;
+    // Keep the active swipe entry in step so swiping back shows the same opening.
+    if (Array.isArray(msg.swipes) && Number.isInteger(msg.swipe_id) && msg.swipes[msg.swipe_id] != null) {
+        msg.swipes[msg.swipe_id] = joined;
+    }
+    try { ctx.updateMessageBlock?.(messageId, msg); } catch (e) { console.warn('[Outcome Roll] re-render failed', e); }
+    try { ctx.saveChat?.(); } catch { /* best effort */ }
+    return true;
 }

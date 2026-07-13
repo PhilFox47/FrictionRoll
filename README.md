@@ -6,28 +6,27 @@ judgment, using a weighted, dice-resolved outcome menu instead.
 
 Most RP-tuned models default toward whatever direction feels most narratively
 satisfying — usually the player succeeding and things going their way. Outcome
-Roll moves the decision **outside** the writing model: before the reply is
-written, a detached side-call proposes a few plausible ways the next beat could
+Roll moves the decision **outside** the writing model: as the reply is being
+assembled, a detached side-call proposes a few plausible ways the next beat could
 go — the player's action landing or not, but also how other characters react,
 outside events, discoveries, or the plot turning — each with a probability. A
-genuine local random roll picks one, and that development — not the model's
-preference — is written as the literal opening of the reply, so the model must
-continue *from* it rather than around it.
+genuine local random roll picks one, a second call writes that development into a
+short opening paragraph, and that paragraph is injected as the reply's seeded
+opening — so the model continues *from* it rather than around it.
 
-It's a standalone companion to the **Friction Lite** preset and completely inert
-until you trigger it. The forced opening (prefill) works with any preset and
-needs no changes; the optional `{{frictionroll}}` directive that steers the rest
-of the reply just needs the preset to embed `{{frictionroll}}` (Friction Lite
-already does, in its directive block).
+It works with **any preset** and needs no preset changes — it manipulates the
+outgoing reply prompt directly rather than relying on any built-in slot or macro.
+It's completely inert until you trigger it.
 
 ## How it works
 
 By default (Auto-roll on send), every message you send is adjudicated
-automatically before the reply is written:
+automatically as the reply is assembled:
 
-1. You send a message — nothing extra to click.
-2. Before the main reply is generated, a detached side-call produces a small
-   weighted menu of *terse outcome bullets* (`TAG|PERCENT|bullet`) for the
+1. You send a message — nothing extra to click. **Your message appears
+   instantly** (the roll does not block the send — see the timing note below).
+2. While the reply's prompt is being built, a detached side-call produces a
+   small weighted menu of *terse outcome bullets* (`TAG|PERCENT|bullet`) for the
    turn's drawn archetypes — the player's action succeeding or failing, but also
    external developments like a character's reaction, an outside event, a
    discovery, or the plot turning. Bullets only ever describe the world's
@@ -38,29 +37,30 @@ automatically before the reply is written:
    against the cumulative ranges — higher-probability outcomes are more likely.
 5. A **second creative call** turns the winning bullet into the **opening
    paragraph** of the reply, where the outcome is unmistakably happening.
-6. The outcome is delivered two ways:
-   - the opening paragraph is written into SillyTavern's **"Start Reply With"**
-     slot (`power_user.user_prompt_bias`) — the literal, forced start of the
-     reply, so the model has no way out but to continue from it;
-   - the winning bullet becomes the **`{{frictionroll}}`** macro, which your
-     preset injects as a directive to steer the *rest* of the reply toward the
-     outcome. Both are cleared after the turn (restoring any static "Start Reply
-     With" you had set).
+6. The paragraph is delivered by manipulating the outgoing reply prompt directly:
+   - it is **injected as the reply's seeded opening** — an assistant prefix for
+     chat completion (the same mechanism as "Start Reply With", but set on the
+     outgoing request so it can't be missed), or appended text for text
+     completion — so the model continues *from* it and has no way out;
+   - because the model's continuation comes back without that seed, the paragraph
+     is then **prepended to the finished reply** and the message re-rendered, so
+     the opening is visible.
 7. After the reply, an optional **outcome evaluation** asks the model a plain
    Yes/No: did the reply actually deliver the outcome? The verdict is logged to
    the console and the debug view.
-8. **Swiping** that reply automatically regenerates the whole chain before the
-   swipe completes. Moving on to a new message clears everything.
+8. **Swiping** that reply automatically regenerates the whole chain. Moving on to
+   a new message clears everything.
 
-The chain is wired to the **`GENERATION_STARTED`** event, which SillyTavern
-emits early in generation (before the "Start Reply With" value is read) and
-awaits — so the roll, prefill, and directive are in place before the main reply
-builds. A plain send often has an `undefined` generation type, so anything that
-isn't a known special type (swipe / regenerate / quiet / impersonate /
-continue) is treated as a send. Because that fires before the sent message is
-committed to chat, the action is read from the composer, and feedback is a
-"rolling…" toast — the sent message and Stop icon appear once the roll
-completes.
+**Timing.** The chain is split across the generation lifecycle so the send is
+never delayed. `GENERATION_STARTED` (which fires before your message is rendered)
+only *arms* the turn — no rolling there. The roll and injection happen at the
+**prompt-ready** event (`CHAT_COMPLETION_PROMPT_READY` for chat completion,
+`GENERATE_AFTER_COMBINE_PROMPTS` for text completion), which fires while the
+reply prompt is assembled — *after* your message is already on screen. So the
+only thing the roll delays is the reply itself, which you're waiting on anyway.
+A plain send often has an `undefined` generation type, so anything that isn't a
+known special type (swipe / regenerate / quiet / impersonate / continue) is
+treated as a send.
 
 ## Trigger model
 
@@ -96,16 +96,14 @@ only when you want an attempt adjudicated.
 ## Failure handling
 
 Fail open, never fail closed. If the side-call errors or returns nothing, the
-extension leaves the "Start Reply With" slot empty and lets the reply generate
-normally rather than blocking your message. Raw responses are logged to the
-console and the debug view.
+extension injects nothing and lets the reply generate normally rather than
+blocking it. Raw responses are logged to the console and the debug view.
 
 ## Install
 
 Use SillyTavern's **Install Extension** with this repository URL, or clone into
-`SillyTavern/public/scripts/extensions/third-party/`. The forced opening works
-out of the box (built-in "Start Reply With"); to also steer the rest of the
-reply, embed `{{frictionroll}}` in your preset's instructions.
+`SillyTavern/public/scripts/extensions/third-party/`. It works out of the box
+with any preset — no preset edits, no built-in slot or macro required.
 
 ## Outcome archetypes
 
@@ -127,15 +125,16 @@ chat, and the debug view shows each turn's draw. A local d100 then picks the
 winner, weighted by the model's percentages.
 
 These tags are internal — the main model only ever sees the generated opening
-prose and the winning bullet (as the directive), never the tag itself — so you
-can add, remove, or reword archetypes freely.
+paragraph, never the tag or the bullet itself — so you can add, remove, or
+reword archetypes freely.
 
-## Compatibility with Friction Lite
+## Preset compatibility
 
-The prefilled opening works with any preset and no changes. For the extra
-`{{frictionroll}}` directive steering, the preset must inject `{{frictionroll}}`
-somewhere in its instructions — Friction Lite already does, inside its
-"DIRECTIVE FOR YOUR NEXT MESSAGE" block.
+The injected opening works with any preset and no changes. A legacy
+`{{frictionroll}}` macro is still registered but now resolves to an empty string
+(the opening paragraph carries the outcome), so presets that still reference it
+— e.g. the old Friction Lite "DIRECTIVE FOR YOUR NEXT MESSAGE" block — won't
+leak a literal token; that block can simply be removed.
 
 ## Out of scope (v1)
 

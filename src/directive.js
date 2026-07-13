@@ -1,23 +1,12 @@
-// The {{frictionroll}} macro. The preset embeds it inside its own directive
-// block (fr_anchor: "DIRECTIVE FOR YOUR NEXT MESSAGE … {{frictionroll}}"), which
-// tells the model to make the beat happen. We resolve the macro to the winning
-// outcome — the concrete event — so the directive steers the rest of the reply
-// toward it, reinforcing the prefilled opening.
-//
-// Macros are resolved late (at prompt substitution), so the value just needs to
-// be set before the reply is assembled; the value is a function so we only
-// mutate a string and never re-register.
+// The {{frictionroll}} macro. The opening paragraph (injected directly into the
+// outgoing reply prompt) is now what carries the rolled outcome, so this macro
+// no longer steers anything — it stays registered and resolves to an empty
+// string purely so any preset that still references {{frictionroll}} (e.g. the
+// old Friction Lite directive block) doesn't leak a literal "{{frictionroll}}"
+// token into the prompt.
 
 import { getST } from './settings.js';
 import { MACRO_NAME } from './constants.js';
-
-let currentDirective = '';
-
-// The preset supplies all the "make it happen" framing, so the macro is just the
-// concrete event (the winning bullet).
-export function buildDirective(selected) {
-    return String(selected?.text ?? '').trim();
-}
 
 export function registerFrictionrollMacro() {
     const ctx = getST();
@@ -27,12 +16,8 @@ export function registerFrictionrollMacro() {
     }
     ctx.registerMacro(
         MACRO_NAME,
-        () => currentDirective,
-        'Outcome Roll directive for the current turn (empty when no roll is active).',
+        () => '',
+        'Outcome Roll (legacy directive macro; now always empty — the opening paragraph carries the outcome).',
     );
     return true;
 }
-
-export function setDirective(selected) { currentDirective = buildDirective(selected); }
-export function clearDirective() { currentDirective = ''; }
-export function getDirective() { return currentDirective; }

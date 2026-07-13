@@ -30,10 +30,10 @@ function lastUserMessage(chat) {
 }
 
 // The action being adjudicated.
-//  - manual / send mode: prefer the composer draft. On a send, the roll runs at
-//    GENERATION_STARTED, BEFORE the message is committed to chat, so the draft
-//    textarea is where the action still lives; fall back to the last chat
-//    message from the player.
+//  - manual mode: the composer draft (the message hasn't been sent yet).
+//  - send mode: by the time we roll (PROMPT_READY) the message is committed to
+//    chat and the composer is usually cleared, so we fall back to the last
+//    player message; the draft is still checked first in case it lingers.
 //  - swipe mode: the last player message already in chat (composer is empty).
 export function getPlayerAction(mode) {
     const chat = getST()?.chat ?? [];

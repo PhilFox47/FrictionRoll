@@ -6,7 +6,7 @@
 // relative imports into the app's source.
 
 import { getSettings } from './src/settings.js';
-import { onGenerationStarted, onGenerationEnded, onChatChanged } from './src/state.js';
+import { onGenerationStarted, onPromptReady, onGenerationEnded, onChatChanged } from './src/state.js';
 import { registerFrictionrollMacro } from './src/directive.js';
 import { initUI } from './src/ui.js';
 
@@ -16,12 +16,15 @@ function wireEvents(ctx) {
         console.warn('[Outcome Roll] event system unavailable; extension inert.');
         return;
     }
-    // GENERATION_STARTED fires early in Generate() — before the prefill slot
-    // (power_user.user_prompt_bias) is read — and is awaited, so the whole
-    // roll+prefill chain runs here and the opening is in place before the main
-    // generation builds its prompt.
+    // GENERATION_STARTED fires before the sent message is rendered — so it only
+    // ARMS the turn (no rolling), keeping the send instant.
     eventSource.on(event_types.GENERATION_STARTED, onGenerationStarted);
-    // GENERATION_ENDED: clear the prefill slot, commit, evaluate.
+    // PROMPT_READY (chat + text variants) fires while the REPLY prompt is
+    // assembled, after the message is on screen — roll here and inject the
+    // opening paragraph into the outgoing prompt.
+    eventSource.on(event_types.CHAT_COMPLETION_PROMPT_READY, onPromptReady);
+    eventSource.on(event_types.GENERATE_AFTER_COMBINE_PROMPTS, onPromptReady);
+    // GENERATION_ENDED: prepend the opening to the finished reply, commit, evaluate.
     eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
     // CHAT_CHANGED: wipe state so nothing leaks across chats.
     eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
@@ -35,10 +38,13 @@ function boot() {
         return;
     }
     getSettings();      // ensure persisted defaults exist
-    const macroOk = registerFrictionrollMacro(); // {{frictionroll}} directive
+    // Keep {{frictionroll}} registered (resolves to empty) so any preset that
+    // still references it doesn't leak a literal token; the opening paragraph,
+    // not a macro directive, is now what carries the outcome.
+    registerFrictionrollMacro();
     wireEvents(ctx);
     initUI();
-    console.log(`[Outcome Roll] loaded (prefill + {{frictionroll}} macro: ${macroOk}).`);
+    console.log('[Outcome Roll] loaded (prompt-injected opening paragraph).');
 }
 
 if (globalThis.jQuery) {

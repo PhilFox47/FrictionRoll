@@ -110,7 +110,7 @@ const SETTINGS_HTML = `
       <label class="checkbox_label" for="or_evaluateOutcome">
         <input type="checkbox" id="or_evaluateOutcome"><span>Evaluate whether the reply delivered the outcome (Yes/No, logged)</span>
       </label>
-      <small class="or-hint">The outcome is written into SillyTavern's "Start Reply With" slot as a generated opening, so it's already on the page when the reply begins. Evaluation adds one small side-call per reply and logs the verdict.</small>
+      <small class="or-hint">The generated opening is injected as the reply's seeded first paragraph and prepended to the finished message. Evaluation adds one small side-call per reply and logs the verdict.</small>
       <label class="checkbox_label" for="or_showResultAfter">
         <input type="checkbox" id="or_showResultAfter"><span>Show roll result as flavor AFTER the reply</span>
       </label>
