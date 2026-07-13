@@ -25,22 +25,26 @@ import { runSideCall } from './menu.js';
 export function buildPrefillSystemPrompt() {
     return [
         'You are a ghostwriter continuing a second-person interactive story.',
-        'You are given the recent scene and ONE event that happens next. Write the OPENING of the next reply — the first two to four sentences, where that event is unmistakably underway.',
-        'Match the voice, tense, and tone of the recent messages. Address the player as "you"; write other characters and the world in the story\'s normal style (dialogue is welcome — this is real prose).',
-        'NEVER narrate the player\'s own actions, words, thoughts, or feelings — only what happens around and to them.',
-        'The event must be clearly happening within these sentences, not merely hinted at. Output raw prose only: no preamble, no labels, no surrounding quotation marks, no commentary.',
+        'You are given the recent scene and exactly ONE event that happens next. Write the OPENING of the next reply — two to four sentences — that shows THAT event actually happening.',
+        'Follow these rules exactly:',
+        '- Open ON the event. Your FIRST sentence must depict the event itself beginning. Do NOT lead with mood, scenery, or a line of dialogue that is not part of the event.',
+        '- Show it happening in the moment. Do NOT skip ahead to the aftermath or the result, and do NOT resolve, soften, or undo it. If the event has several beats, take them in order, starting from the first — e.g. if a distraction happens and then someone acts on it, show the distraction FIRST, then the action.',
+        '- Stay strictly on this event. Include every concrete element it names, and invent NOTHING that is not in the event or the recent scene — no new characters, no extra developments, and no dialogue that the event does not call for.',
+        '- Match the voice, tense, and tone of the recent messages, addressing the player as "you". Write other characters and the world in the story\'s normal style; dialogue is fine only when it is part of this event.',
+        '- NEVER narrate the player\'s own actions, words, thoughts, or feelings — only what happens around and to them.',
+        'Output raw prose only: no preamble, no labels, no surrounding quotation marks, no commentary.',
     ].join(' ');
 }
 
 export function buildPrefillUserPrompt(contextText, outcome) {
     return [
-        'RECENT SCENE:',
+        'RECENT SCENE (for voice and continuity only — do not carry over any thread from it that would replace or contradict the event below):',
         contextText || '(no prior context)',
         '',
-        'EVENT THAT HAPPENS NEXT (open the reply so this is unmistakably happening):',
+        'THE EVENT THAT HAPPENS NEXT — open the reply by showing THIS, and only this, actually happening:',
         outcome,
         '',
-        'Write only the opening paragraph of the reply (2-4 sentences), in the story\'s own voice. Raw prose only.',
+        'Write the opening 2-4 sentences of the reply. Begin with the event itself, move through its beats in order, and stop once the event is clearly underway. Do not add anything the event does not describe. Raw prose only.',
     ].join('\n');
 }
 
