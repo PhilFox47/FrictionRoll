@@ -2,10 +2,15 @@
 
 export const MODULE_NAME = 'outcome-roll';
 
+// The macro the preset injects ({{frictionroll}}) for the directive that steers
+// the rest of the reply toward the rolled outcome. The literal opening prose is
+// delivered separately, via the "Start Reply With" prefill slot.
+export const MACRO_NAME = 'frictionroll';
+
 // The outcome archetypes the side-call can choose from. These tags are INTERNAL
-// (they never reach the main model — only the winning outcome's prose does), so
+// (the main model only ever sees the winning outcome's prose + directive), so
 // the taxonomy purely shapes what kinds of beats get generated. Compact
-// single-token tags keep the strict TAG|PERCENT|prose format reliable on small
+// single-token tags keep the strict TAG|PERCENT|bullet format reliable on small
 // models. Descriptions double as the prompt legend and the debug labels.
 export const ARCHETYPES = [
     { tag: 'WIN', desc: 'The next beat plays out in your favour.' },
@@ -29,10 +34,11 @@ export const ARCHETYPES = [
 
 export const TAGS = ARCHETYPES.map((a) => a.tag);
 
-// Token budgets / sampler settings for the two side-calls.
-export const MENU_MAX_TOKENS = 600;   // one prose paragraph per outcome
-export const EVAL_MAX_TOKENS = 8;     // just "Yes" / "No"
-export const EVAL_TEMPERATURE = 0.2;  // deterministic verdict
+// Token budgets for the side-calls.
+export const MENU_MAX_TOKENS = 400;    // a terse bullet per outcome
+export const PREFILL_MAX_TOKENS = 200; // one opening paragraph for the winner
+export const EVAL_MAX_TOKENS = 8;      // just "Yes" / "No"
+export const EVAL_TEMPERATURE = 0.2;   // deterministic verdict
 
 export const defaultSettings = {
     enabled: true,
@@ -51,9 +57,11 @@ export const defaultSettings = {
     // Any other value is a Connection Manager profile id used for the side-call.
     connectionProfileId: '',
 
-    // The outcome side-call now writes prose openings, so it uses a creative
-    // temperature near the main roleplay generation.
-    generationTemperature: 0.9,
+    // The outcome-menu side-call writes terse bullets (structured), so a lower
+    // temperature. The prefill side-call writes prose, so a creative one near
+    // the main roleplay generation.
+    outcomeTemperature: 0.7,
+    prefillTemperature: 0.9,
 
     // Optional: pop a small editor to specify/edit the action before rolling.
     promptForAction: false,

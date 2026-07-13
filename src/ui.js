@@ -86,9 +86,15 @@ const SETTINGS_HTML = `
       </div>
 
       <div class="or-row">
-        <label for="or_generationTemperature">Outcome prose temperature</label>
-        <input type="number" id="or_generationTemperature" min="0" max="2" step="0.05" class="text_pole">
-        <small class="or-hint">The outcomes are written as prose — keep this near your main roleplay temperature.</small>
+        <label for="or_outcomeTemperature">Outcome-menu temperature</label>
+        <input type="number" id="or_outcomeTemperature" min="0" max="2" step="0.05" class="text_pole">
+        <small class="or-hint">The menu is terse bullets — a lower, steadier value.</small>
+      </div>
+
+      <div class="or-row">
+        <label for="or_prefillTemperature">Opening-prose temperature</label>
+        <input type="number" id="or_prefillTemperature" min="0" max="2" step="0.05" class="text_pole">
+        <small class="or-hint">The winning outcome's opening paragraph — keep near your main roleplay temperature.</small>
       </div>
 
       <label class="checkbox_label" for="or_autoRollOnSend">
@@ -133,7 +139,8 @@ const FIELDS = {
     or_contextMessageCount: ['contextMessageCount', 'int'],
     or_contextTokenBudget: ['contextTokenBudget', 'int'],
     or_connectionProfileId: ['connectionProfileId', 'str'],
-    or_generationTemperature: ['generationTemperature', 'float'],
+    or_outcomeTemperature: ['outcomeTemperature', 'float'],
+    or_prefillTemperature: ['prefillTemperature', 'float'],
     or_autoRollOnSend: ['autoRollOnSend', 'bool'],
     or_promptForAction: ['promptForAction', 'bool'],
     or_autoRerollOnSwipe: ['autoRerollOnSwipe', 'bool'],

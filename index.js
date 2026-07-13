@@ -7,6 +7,7 @@
 
 import { getSettings } from './src/settings.js';
 import { onGenerationStarted, onGenerationEnded, onChatChanged } from './src/state.js';
+import { registerFrictionrollMacro } from './src/directive.js';
 import { initUI } from './src/ui.js';
 
 function wireEvents(ctx) {
@@ -34,9 +35,10 @@ function boot() {
         return;
     }
     getSettings();      // ensure persisted defaults exist
+    const macroOk = registerFrictionrollMacro(); // {{frictionroll}} directive
     wireEvents(ctx);
     initUI();
-    console.log('[Outcome Roll] loaded (prefill mode).');
+    console.log(`[Outcome Roll] loaded (prefill + {{frictionroll}} macro: ${macroOk}).`);
 }
 
 if (globalThis.jQuery) {

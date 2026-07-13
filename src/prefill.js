@@ -7,9 +7,51 @@
 // GENERATION_STARTED handler (early + awaited). We preserve and restore any
 // static value the user had set in that field.
 
-import { getST } from './settings.js';
+import { getST, getSettings } from './settings.js';
+import { PREFILL_MAX_TOKENS } from './constants.js';
+import { runSideCall } from './menu.js';
 
-// Tidy the winning outcome text before it becomes the prefill: drop a leading
+// --- Prose generation: turn the winning bullet into the reply's opening ------
+// A dedicated creative call, so it is a real paragraph (not one of five rushed
+// lines). The outcome is baked into these first sentences, so once it is the
+// prefill the model has no way out — it must continue from an opening where the
+// outcome is already happening.
+
+export function buildPrefillSystemPrompt() {
+    return [
+        'You are a ghostwriter continuing a second-person interactive story.',
+        'You are given the recent scene and ONE event that happens next. Write the OPENING of the next reply — the first two to four sentences, where that event is unmistakably underway.',
+        'Match the voice, tense, and tone of the recent messages. Address the player as "you"; write other characters and the world in the story\'s normal style (dialogue is welcome — this is real prose).',
+        'NEVER narrate the player\'s own actions, words, thoughts, or feelings — only what happens around and to them.',
+        'The event must be clearly happening within these sentences, not merely hinted at. Output raw prose only: no preamble, no labels, no surrounding quotation marks, no commentary.',
+    ].join(' ');
+}
+
+export function buildPrefillUserPrompt(contextText, outcome) {
+    return [
+        'RECENT SCENE:',
+        contextText || '(no prior context)',
+        '',
+        'EVENT THAT HAPPENS NEXT (open the reply so this is unmistakably happening):',
+        outcome,
+        '',
+        'Write only the opening paragraph of the reply (2-4 sentences), in the story\'s own voice. Raw prose only.',
+    ].join('\n');
+}
+
+// Generate the opening paragraph for the selected outcome (creative temp).
+export async function generatePrefill(contextText, outcome) {
+    const settings = getSettings();
+    const raw = await runSideCall(
+        buildPrefillSystemPrompt(),
+        buildPrefillUserPrompt(contextText, outcome),
+        PREFILL_MAX_TOKENS,
+        settings.prefillTemperature,
+    );
+    return sanitizePrefill(raw);
+}
+
+// Tidy the generated prose before it becomes the prefill: drop a leading
 // label and a single pair of quotes wrapping the WHOLE line. Internal dialogue
 // quotes are preserved, and multi-paragraph text is collapsed to its first
 // paragraph (outcomes are single-line, so this is usually a no-op).

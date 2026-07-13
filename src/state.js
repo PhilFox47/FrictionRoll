@@ -25,7 +25,8 @@ import {
 } from './menu.js';
 import { rollD100, selectByRoll } from './roll.js';
 import { drawArchetypes, resetBag } from './bag.js';
-import { sanitizePrefill, setPrefill, clearPrefill } from './prefill.js';
+import { generatePrefill, setPrefill, clearPrefill } from './prefill.js';
+import { setDirective, clearDirective } from './directive.js';
 import { setDebug, annotateDebug } from './debug.js';
 import { buildEvalSystemPrompt, buildEvalUserPrompt, parseEvalVerdict } from './evaluate.js';
 
@@ -83,7 +84,7 @@ async function generateMenu(mode, { actionOverride } = {}) {
 
     for (let attempt = 0; attempt < 2; attempt++) {
         const userPrompt = buildUserPrompt(contextText, action, settings, playerName, candidateTags, attempt > 0);
-        raw = await runSideCall(systemPrompt, userPrompt, MENU_MAX_TOKENS, settings.generationTemperature);
+        raw = await runSideCall(systemPrompt, userPrompt, MENU_MAX_TOKENS, settings.outcomeTemperature);
         const deduped = dedupeByTag(parseMenu(raw));
         const onList = deduped.filter((o) => candidateSet.has(o.tag));
         outcomes = onList.length >= 2 ? onList : deduped;
@@ -100,28 +101,39 @@ async function generateMenu(mode, { actionOverride } = {}) {
     const { selected, ranges } = selectByRoll(normalized, roll);
 
     setDebug({ mode, action, contextText, raw, candidateTags, menu: ranges, roll, selected });
-    return { menu: ranges, roll, selected };
+    return { menu: ranges, roll, selected, contextText };
 }
 
-// Roll an outcome and write its prose straight into the "Start Reply With" slot
-// (the winning line IS the opening — no separate conversion). `busy` guards
-// re-entrancy from our own side-call. Fails open: on error the slot is left
-// empty and the reply generates normally.
+// Roll a bullet menu, pick one, then turn the winner into (a) the reply's
+// opening prose in the "Start Reply With" slot [the prefill — forces the
+// opening] and (b) the {{frictionroll}} directive [steers the rest]. `busy`
+// guards re-entrancy from our own side-calls. Fails open: on error the slot and
+// directive are cleared and the reply generates normally.
 async function produceOutcome(mode, { actionOverride, committed = false, messageId = null } = {}) {
     busy = true;
     try {
         const result = await generateMenu(mode, { actionOverride });
-        const prefill = sanitizePrefill(result.selected.text);
+
+        let prefill = '';
+        try {
+            prefill = await generatePrefill(result.contextText, result.selected.text);
+        } catch (e) {
+            console.warn('[Outcome Roll] prefill generation failed — using the directive only.', e);
+            prefill = '';
+        }
 
         pending = { ...result, prefill, status: committed ? 'committed' : 'primed', messageId };
         if (prefill) setPrefill(prefill); else clearPrefill();
+        setDirective(result.selected); // {{frictionroll}} steers the rest either way
 
         annotateDebug({ prefill: prefill || '(none)' });
-        console.info(`[Outcome Roll] ${mode} roll ${result.roll}/100 → ${result.selected.tag}: ${prefill}`);
+        console.info(`[Outcome Roll] ${mode} roll ${result.roll}/100 → ${result.selected.tag}: ${result.selected.text}`);
+        console.info(`[Outcome Roll] prefill: ${prefill || '(empty)'}`);
         return true;
     } catch (e) {
         console.error(`[Outcome Roll] ${mode} roll failed`, e);
         clearPrefill();
+        clearDirective();
         if (committed) pending = null;
         return false;
     } finally {
@@ -213,9 +225,10 @@ export function onGenerationEnded() {
     const settings = getSettings();
     if (!settings.enabled) return;
 
-    // The generation has consumed the prefill; restore the user's slot so it
+    // The generation has consumed the prefill + directive; clear both so they
     // can never leak into a later, unrelated reply.
     clearPrefill();
+    clearDirective();
 
     if (consumeOnReceive && pending?.status === 'primed') {
         pending.status = 'committed';
@@ -266,6 +279,7 @@ async function evaluateReply() {
 // --- Chat switch / reset: wipe everything so nothing leaks across chats -----
 export function onChatChanged() {
     clearPrefill();
+    clearDirective();
     resetBag(); // each story rotates its archetypes independently
     pending = null;
     consumeOnReceive = false;
